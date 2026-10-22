@@ -966,6 +966,22 @@
         return n + ' Practical';
     }
 
+    // حساب تاريخ نهاية الدورة لإدارة الدورات (2 شهور)
+    function getEndDateCourses(dip) {
+        if (!dip) return null;
+        if (dip.end_date_courses) return dip.end_date_courses;
+        if (dip.start_date) return calcEndDate(dip.start_date, 2);
+        return dip.end_date || null;
+    }
+
+    // حساب تاريخ نهاية الدورة لإدارة المعمل (3 شهور)
+    function getEndDateLab(dip) {
+        if (!dip) return null;
+        if (dip.end_date_lab) return dip.end_date_lab;
+        if (dip.start_date) return calcEndDate(dip.start_date, 3);
+        return dip.end_date || null;
+    }
+
     let idleConnectionTimer = null;
     function scheduleStudentOffline() {
         if (auth.currentUser) return;
@@ -1307,7 +1323,7 @@
 
     window.autoCalcDipEndDate = function() {
         const startVal = document.getElementById('new-dip-start-date').value;
-        document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2); // إدارة الدورات = شهرين
+        document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2);
     };
 
     let editingDipId = null;
@@ -1318,9 +1334,9 @@
         if (!startVal) return;
         const context = document.getElementById('edit-dip-context').value;
         if (context === 'lab') {
-            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3); // إدارة المعمل = 3 شهور
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3);
         } else {
-            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2); // إدارة الدورات = شهرين
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
         }
     };
 
@@ -1331,12 +1347,7 @@
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
-        // end_date readonly ومحسوب تلقائي = start + 2 شهور
-        if (dip.start_date) {
-            document.getElementById('edit-dip-end').value = calcEndDate(dip.start_date, 2);
-        } else {
-            document.getElementById('edit-dip-end').value = dip.end_date || '';
-        }
+        document.getElementById('edit-dip-end').value = getEndDateCourses(dip) || '';
 
         const moneyInfoEl = document.getElementById('dip-money-info');
         moneyInfoEl.style.display = 'block';
@@ -1370,13 +1381,7 @@
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
-
-        // end_date readonly ومحسوب تلقائي = start + 3 شهور (إدارة المعمل)
-        if (dip.start_date) {
-            document.getElementById('edit-dip-end').value = calcEndDate(dip.start_date, 3);
-        } else {
-            document.getElementById('edit-dip-end').value = dip.end_date || '';
-        }
+        document.getElementById('edit-dip-end').value = getEndDateLab(dip) || '';
 
         const moneyInfoEl = document.getElementById('dip-money-info');
         moneyInfoEl.style.display = 'none';
@@ -1392,14 +1397,13 @@
 
     window.saveDipDates = async function() {
         const startVal = document.getElementById('edit-dip-start').value;
-        let endVal;
         if (editingLabDipId) {
             // إدارة المعمل = 3 شهور
-            endVal = startVal ? calcEndDate(startVal, 3) : null;
+            const endVal = startVal ? calcEndDate(startVal, 3) : null;
             try {
                 await database.ref('diplomas/' + editingLabDipId).update({
                     start_date: startVal || null,
-                    end_date: endVal
+                    end_date_lab: endVal
                 });
                 alert('تم حفظ فترة الدورة ✅');
                 editingLabDipId = null;
@@ -1410,11 +1414,11 @@
         }
         if (!editingDipId) return;
         // إدارة الدورات = شهرين
-        endVal = startVal ? calcEndDate(startVal, 2) : null;
+        const endVal = startVal ? calcEndDate(startVal, 2) : null;
         try {
             await database.ref('diplomas/' + editingDipId).update({
                 start_date: startVal || null,
-                end_date: endVal
+                end_date_courses: endVal
             });
             alert('تم حفظ فترة الدورة ✅');
             closeDipEditDatesModal();
@@ -1965,8 +1969,9 @@
         const number = document.getElementById('new-dip-number').value.trim();
         const price = parseInt(document.getElementById('new-dip-price').value) || 0;
         const startDate = document.getElementById('new-dip-start-date').value;
-        // end_date محسوب تلقائي = start + 2 شهور (إدارة الدورات)
-        const endDate = startDate ? calcEndDate(startDate, 2) : null;
+        // الحقلين محسوبين تلقائي
+        const endDateCourses = startDate ? calcEndDate(startDate, 2) : null;
+        const endDateLab = startDate ? calcEndDate(startDate, 3) : null;
 
         if (!name || !number) { alert('يرجى إدخال اسم ورقم الدورة.'); return; }
 
@@ -1983,7 +1988,9 @@
             await database.ref('diplomas').push({
                 name, number, price, courses,
                 start_date: startDate || null,
-                end_date: endDate,
+                end_date: endDateCourses || null,
+                end_date_courses: endDateCourses,
+                end_date_lab: endDateLab,
                 createdAt: new Date().toLocaleString()
             });
             alert('تم حفظ الدورة بنجاح! ✅');
@@ -2030,7 +2037,8 @@
             const name = (dip.name || 'بدون اسم').trim();
             if (!groups[name]) groups[name] = { count: 0, activeCount: 0, totalStudents: 0 };
             groups[name].count++;
-            const isExpired = dip.end_date && dip.end_date < todayStr;
+            const endDate = getEndDateCourses(dip);
+            const isExpired = endDate && endDate < todayStr;
             if (!isExpired) groups[name].activeCount++;
             const students = allDiplomaStudents[id] || {};
             groups[name].totalStudents += Object.keys(students).length;
@@ -2116,11 +2124,12 @@
             const dip = allDiplomas[id];
             const dipStudents = allDiplomaStudents[id] || {};
             const studentCount = Object.keys(dipStudents).length;
-            const isExpired = dip.end_date && dip.end_date < todayStr;
+            const endDate = getEndDateCourses(dip);
+            const isExpired = endDate && endDate < todayStr;
             let coursesText = (dip.courses || []).map(c => `${c.name} (${c.lectures})`).join(' • ');
             let datesHtml = '';
-            if (dip.start_date || dip.end_date) {
-                datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
+            if (dip.start_date || endDate) {
+                datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${endDate || '?'}</strong></div>`;
             }
             const safeName = escapeForAttr(dip.name || '');
             const safeNumber = escapeForAttr(dip.number || '');
@@ -2405,7 +2414,8 @@
             const name = (dip.name || 'بدون اسم').trim();
             if (!groups[name]) groups[name] = { count: 0, activeCount: 0, totalStudents: 0 };
             groups[name].count++;
-            const isExpired = dip.end_date && dip.end_date < todayStr;
+            const endDate = getEndDateLab(dip);
+            const isExpired = endDate && endDate < todayStr;
             if (!isExpired) groups[name].activeCount++;
             const students = allDiplomaStudents[id] || {};
             groups[name].totalStudents += Object.keys(students).length;
@@ -2448,11 +2458,11 @@
     }
 
     window.openLabGroup = function(groupName) {
-        currentLabGroupName = groupName; // الاسم الأصلي للمطابقة
+        currentLabGroupName = groupName;
         document.getElementById('lab-groups-view').style.display = 'none';
         document.getElementById('lab-group-detail-view').style.display = 'block';
         document.getElementById('lab-group-copy-detail-view').style.display = 'none';
-        document.getElementById('lab-group-title').innerText = labDisplayName(groupName); // العرض بإضافة Practical
+        document.getElementById('lab-group-title').innerText = labDisplayName(groupName);
         document.getElementById('lab-group-search-input').value = '';
         renderLabGroupCopies();
     };
@@ -2487,12 +2497,12 @@
             const dip = allDiplomas[id];
             const dipStudents = allDiplomaStudents[id] || {};
             const studentCount = Object.keys(dipStudents).length;
-            const isExpired = dip.end_date && dip.end_date < todayStr;
+            const endDate = getEndDateLab(dip);
+            const isExpired = endDate && endDate < todayStr;
             let datesHtml = '';
-            if (dip.start_date || dip.end_date) {
-                datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
+            if (dip.start_date || endDate) {
+                datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${endDate || '?'}</strong></div>`;
             }
-            // العرض في إدارة المعمل بإضافة Practical
             const displayName = labDisplayName(dip.name || '');
             const safeDisplayName = escapeForAttr(displayName);
             const safeNameOriginal = escapeForAttr(dip.name || '');
@@ -2534,7 +2544,6 @@
         if (!dip) return;
         document.getElementById('lab-group-detail-view').style.display = 'none';
         document.getElementById('lab-group-copy-detail-view').style.display = 'block';
-        // العرض في إدارة المعمل بإضافة Practical
         document.getElementById('lab-group-copy-title').innerText = `${labDisplayName(dip.name)} - رقم ${dip.number}`;
         await renderLabDipCopyStudents();
     };
@@ -2567,7 +2576,7 @@
         } catch(e) {}
 
         const keys = Object.keys(students);
-        const diplomaName = (dip.name || '').trim(); // الاسم الأصلي للمطابقة في lab_course_tasks
+        const diplomaName = (dip.name || '').trim();
         const courseList = dip.courses || [];
 
         let html = `
@@ -3384,6 +3393,21 @@
         database.ref('diplomas').on('value', snap => {
             const diplomas = snap.exists() ? snap.val() : {};
             allDiplomas = diplomas;
+
+            // Migration: إضافة الحقول الجديدة للدورات القديمة اللي عندها end_date بس
+            Object.keys(diplomas).forEach(id => {
+                const dip = diplomas[id];
+                if (!dip) return;
+                const updates = {};
+                if (dip.start_date) {
+                    if (!dip.end_date_courses) updates.end_date_courses = calcEndDate(dip.start_date, 2);
+                    if (!dip.end_date_lab) updates.end_date_lab = calcEndDate(dip.start_date, 3);
+                }
+                if (Object.keys(updates).length > 0) {
+                    database.ref('diplomas/' + id).update(updates);
+                }
+            });
+
             const namesSet = new Set();
             Object.values(diplomas).forEach(d => {
                 if (d.name) namesSet.add(d.name.trim());
