@@ -548,6 +548,7 @@
     <div class="modal-content" style="max-width: 450px; text-align: right;">
         <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">تعديل فترة الدورة</h3>
         <div class="dip-money-info" id="dip-money-info" style="display: none;"></div>
+        <input type="hidden" id="edit-dip-context" value="courses">
         <label>بداية الدورة:</label>
         <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
         <label>نهاية الدورة:</label>
@@ -1408,12 +1409,12 @@
 
     window.autoCalcDipEndDate = function() {
         const startVal = document.getElementById('new-dip-start-date').value;
-        document.getElementById('new-dip-end-date').value = calcEndDate(startVal);
+        document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2);
     };
 
     window.autoCalcEditDipEnd = function() {
         const startVal = document.getElementById('edit-dip-start').value;
-        if (startVal) document.getElementById('edit-dip-end').value = calcEndDate(startVal);
+        if (startVal) document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
     };
 
     let editingDipId = null;
@@ -1422,7 +1423,8 @@
     window.handleEditStartChange = function() {
         const startVal = document.getElementById('edit-dip-start').value;
         if (!startVal) return;
-        if (editingLabDipId) {
+        const context = document.getElementById('edit-dip-context').value;
+        if (context === 'lab') {
             document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3);
         } else {
             document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
@@ -1432,6 +1434,7 @@
     window.openDipEditDates = async function(id) {
         editingDipId = id;
         editingLabDipId = null;
+        document.getElementById('edit-dip-context').value = 'courses';
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
@@ -1465,12 +1468,19 @@
     window.openLabDipEditDates = async function(id) {
         editingLabDipId = id;
         editingDipId = null;
+        document.getElementById('edit-dip-context').value = 'lab';
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
-        document.getElementById('edit-dip-end').value = dip.end_date || '';
 
-        // في إدارة المعمل: نخفي قسم الحسابات
+        // في إدارة المعمل: نحسب النهاية تلقائياً كـ 3 شهور من البداية
+        if (dip.start_date) {
+            document.getElementById('edit-dip-end').value = calcEndDate(dip.start_date, 3);
+        } else {
+            document.getElementById('edit-dip-end').value = dip.end_date || '';
+        }
+
+        // إخفاء قسم الحسابات
         const moneyInfoEl = document.getElementById('dip-money-info');
         moneyInfoEl.style.display = 'none';
         moneyInfoEl.innerHTML = '';
@@ -2581,7 +2591,6 @@
             const dipStudents = allDiplomaStudents[id] || {};
             const studentCount = Object.keys(dipStudents).length;
             const isExpired = dip.end_date && dip.end_date < todayStr;
-            // في إدارة المعمل: نخفي سطر الكورسات
             let datesHtml = '';
             if (dip.start_date || dip.end_date) {
                 datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
@@ -2659,6 +2668,17 @@
         const keys = Object.keys(students);
         const diplomaName = (dip.name || '').trim();
         const courseList = dip.courses || [];
+
+        console.log('=== تشخيص إدارة المجموعات ===');
+        console.log('اسم الدورة (dip.name):', JSON.stringify(dip.name));
+        console.log('اسم الدورة بعد trim:', JSON.stringify(diplomaName));
+        console.log('كل المفاتيح في lab_course_tasks:', Object.keys(labCourseTasks));
+        console.log('هل فيه تطابق للدورة؟', labCourseTasks[diplomaName] ? 'نعم' : 'لا');
+        console.log('كورسات الدورة:', courseList.map(c => c.name));
+        if (labCourseTasks[diplomaName]) {
+            console.log('كورسات في lab_course_tasks:', Object.keys(labCourseTasks[diplomaName]));
+        }
+        console.log('==============================');
 
         let html = `
         <div class="excel-table-container">
@@ -3535,24 +3555,36 @@
         database.ref('settings/group_resets').on('value', snap => { groupResets = snap.exists() ? snap.val() : {}; });
         database.ref('settings/global_group_reset').on('value', snap => { globalGroupResetDate = snap.exists() ? snap.val() : null; });
 
-        // تاسكات المعمل - realtime تحديث الجدول
+        // تاسكات المعمل - realtime
         database.ref('lab_course_tasks').on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
+            console.log('lab_course_tasks محدّث:', labCourseTasks);
             if (document.getElementById('lab-tasks-diploma-select')) {
                 renderLabTasksCourseInputs();
             }
             if (currentLabDipId) renderLabDipCopyStudents();
+        }, err => {
+            console.error('خطأ في قراءة lab_course_tasks (تأكد من Firebase Rules):', err);
         });
 
-        // تحديث أسماء الدورات في select إدارة التاسكات
         database.ref('diplomas').on('value', snap => {
             const diplomas = snap.exists() ? snap.val() : {};
+            allDiplomas = diplomas;
             const namesSet = new Set();
             Object.values(diplomas).forEach(d => {
                 if (d.name) namesSet.add(d.name.trim());
             });
             allDiplomaNames = Array.from(namesSet).sort();
             populateLabTasksDiplomaSelect();
+        });
+
+        database.ref('diploma_students').on('value', snap => {
+            allDiplomaStudents = snap.exists() ? snap.val() : {};
+            if (document.getElementById('view-groups').classList.contains('active')) {
+                if (currentLabDipId) renderLabDipCopyStudents();
+                else if (currentLabGroupName) renderLabGroupCopies();
+                else renderLabGroups();
+            }
         });
 
         database.ref('students').on('value', (snapshot) => {
@@ -4556,13 +4588,20 @@
             const val = parseInt(inp.value) || 0;
             updates[cName] = { tasks: val };
         });
+        console.log('=== حفظ تاسكات ===');
+        console.log('اسم الدورة:', JSON.stringify(diplomaName));
+        console.log('البيانات المبعوتة:', updates);
+        console.log('المسار:', 'lab_course_tasks/' + diplomaName);
         try {
             await database.ref('lab_course_tasks/' + diplomaName).update(updates);
             alert('تم حفظ تاسكات الدورة ✅');
-        } catch(e) { alert('خطأ: ' + e.message); }
+        } catch(e) { 
+            console.error('خطأ في الحفظ:', e);
+            alert('خطأ: ' + e.message + '\n\nتأكد من إضافة "lab_course_tasks" في Firebase Rules:\n"lab_course_tasks": {\n  ".read": true,\n  ".write": "auth != null"\n}'); 
+        }
     };
 
-    // Stubs لإعدادات النظام لو مش معرّفة
+    // Stubs لإعدادات النظام
     if (typeof renderSystemSettingsUI !== 'function') {
         window.renderSystemSettingsUI = function() {
             const btn = document.getElementById('btn-block-late');
