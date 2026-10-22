@@ -551,8 +551,8 @@
         <input type="hidden" id="edit-dip-context" value="courses">
         <label>بداية الدورة:</label>
         <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
-        <label>نهاية الدورة (تلقائي):</label>
-        <input type="date" id="edit-dip-end" readonly style="background:#eae6f0; cursor:not-allowed;">
+        <label>نهاية الدورة:</label>
+        <input type="date" id="edit-dip-end">
         <button class="submit-btn" style="margin-top:10px;" onclick="saveDipDates()">حفظ التعديل</button>
         <button class="back-btn" style="width:100%; margin-top:10px;" onclick="closeDipEditDatesModal()">إلغاء</button>
     </div>
@@ -658,8 +658,8 @@
             <label>بداية الدورة:</label>
             <input type="date" id="new-dip-start-date" onchange="autoCalcDipEndDate()">
 
-            <label>نهاية الدورة (تلقائي - بعد شهرين):</label>
-            <input type="date" id="new-dip-end-date" readonly style="background:#eae6f0; cursor:not-allowed;">
+            <label>نهاية الدورة (تلقائي - بعد شهرين، قابل للتعديل):</label>
+            <input type="date" id="new-dip-end-date">
 
             <label style="margin-top: 15px; display: block;">الكورسات في الدورة:</label>
             <div id="diploma-courses-container">
@@ -1321,6 +1321,7 @@
         return `${targetYear}-${String(finalMonth+1).padStart(2,'0')}-${String(finalDay).padStart(2,'0')}`;
     }
 
+    // في إضافة دورة جديدة: end_date قابل للتعديل + يتحسب تلقائي عند اختيار start_date
     window.autoCalcDipEndDate = function() {
         const startVal = document.getElementById('new-dip-start-date').value;
         document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2);
@@ -1329,6 +1330,7 @@
     let editingDipId = null;
     let editingLabDipId = null;
 
+    // في تعديل التواريخ: يتحسب تلقائي عند تغيير start_date، لكن المستخدم يقدر يعدل end_date
     window.handleEditStartChange = function() {
         const startVal = document.getElementById('edit-dip-start').value;
         if (!startVal) return;
@@ -1395,15 +1397,15 @@
         document.getElementById('dip-edit-dates-modal').style.display = 'none';
     };
 
+    // الحفظ: بياخد القيمة اللي في end_date (سواء تلقائية أو معدلة)
     window.saveDipDates = async function() {
         const startVal = document.getElementById('edit-dip-start').value;
+        const endVal = document.getElementById('edit-dip-end').value;
         if (editingLabDipId) {
-            // إدارة المعمل = 3 شهور
-            const endVal = startVal ? calcEndDate(startVal, 3) : null;
             try {
                 await database.ref('diplomas/' + editingLabDipId).update({
                     start_date: startVal || null,
-                    end_date_lab: endVal
+                    end_date_lab: endVal || null
                 });
                 alert('تم حفظ فترة الدورة ✅');
                 editingLabDipId = null;
@@ -1413,12 +1415,10 @@
             return;
         }
         if (!editingDipId) return;
-        // إدارة الدورات = شهرين
-        const endVal = startVal ? calcEndDate(startVal, 2) : null;
         try {
             await database.ref('diplomas/' + editingDipId).update({
                 start_date: startVal || null,
-                end_date_courses: endVal
+                end_date_courses: endVal || null
             });
             alert('تم حفظ فترة الدورة ✅');
             closeDipEditDatesModal();
@@ -1969,8 +1969,10 @@
         const number = document.getElementById('new-dip-number').value.trim();
         const price = parseInt(document.getElementById('new-dip-price').value) || 0;
         const startDate = document.getElementById('new-dip-start-date').value;
-        // الحقلين محسوبين تلقائي
-        const endDateCourses = startDate ? calcEndDate(startDate, 2) : null;
+        // end_date_courses: القيمة اللي المستخدم كتبها أو المعدلة (fallback: start + 2 شهور)
+        let endDateCourses = document.getElementById('new-dip-end-date').value;
+        if (!endDateCourses && startDate) endDateCourses = calcEndDate(startDate, 2);
+        // end_date_lab: دايماً محسوب من start_date = 3 شهور
         const endDateLab = startDate ? calcEndDate(startDate, 3) : null;
 
         if (!name || !number) { alert('يرجى إدخال اسم ورقم الدورة.'); return; }
@@ -1989,7 +1991,7 @@
                 name, number, price, courses,
                 start_date: startDate || null,
                 end_date: endDateCourses || null,
-                end_date_courses: endDateCourses,
+                end_date_courses: endDateCourses || null,
                 end_date_lab: endDateLab,
                 createdAt: new Date().toLocaleString()
             });
@@ -2430,10 +2432,9 @@
         container.innerHTML = '';
         names.sort().forEach(name => {
             const g = groups[name];
-            // العرض في إدارة المعمل بإضافة Practical
             const displayName = labDisplayName(name);
             const safeDisplayName = escapeForAttr(displayName);
-            const onclickName = escapeForJs(name); // المطابقة بالاسم الأصلي
+            const onclickName = escapeForJs(name);
             container.innerHTML += `
                 <div class="group-card" onclick="openLabGroup('${onclickName}')">
                     <span class="group-icon">📚</span>
@@ -3379,7 +3380,6 @@
             if(document.getElementById('rule-abs-limit')) renderSystemSettingsUI();
         });
 
-        // تاسكات المعمل - realtime
         database.ref('lab_course_tasks').on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
             if (document.getElementById('lab-tasks-diploma-select')) {
