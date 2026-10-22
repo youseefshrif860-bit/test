@@ -551,8 +551,8 @@
         <input type="hidden" id="edit-dip-context" value="courses">
         <label>بداية الدورة:</label>
         <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
-        <label>نهاية الدورة:</label>
-        <input type="date" id="edit-dip-end">
+        <label>نهاية الدورة (تلقائي):</label>
+        <input type="date" id="edit-dip-end" readonly style="background:#eae6f0; cursor:not-allowed;">
         <button class="submit-btn" style="margin-top:10px;" onclick="saveDipDates()">حفظ التعديل</button>
         <button class="back-btn" style="width:100%; margin-top:10px;" onclick="closeDipEditDatesModal()">إلغاء</button>
     </div>
@@ -913,34 +913,7 @@
                     <div>تاريخ آخر حضور: <b id="report-last"></b></div>
                     <div>مرات الغياب: <b id="report-absent" style="color: red;"></b></div>
                     <div style="font-weight: bold; color: #cc0000; font-size: 14px; margin-top: 2px;" id="report-absence-cycle"></div>
-                    <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #ddd; font-size: 14px;">عمر المجموعة: <b id="report-group-tenure" style="color: #28a745;"></b></div>
                     <div id="report-vip-status" style="margin-top:5px; font-size: 20px; display:none; cursor:help;" title="خريج (VIP)">⭐</div>
-                </div>
-            </div>
-            <div style="position:relative;">
-                <button onclick="toggleExtraSettings()" style="background: none; border: none; font-size: 26px; cursor: pointer;" title="ملاحظات وتسليم الأسلاك">⚙️</button>
-                <div id="extra-settings-panel" style="display: none; position: absolute; left: 0; top: 40px; background: white; border: 2px solid #fcc01a; border-radius: 8px; padding: 15px; width: 270px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; text-align:right;">
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
-                        <strong style="font-size: 15px; color: #3b1e5a;">Wires:</strong>
-                        <div style="display: flex; align-items: center;">
-                            <span id="wire-status-text" style="font-weight: bold; color: #28a745; font-size: 15px; cursor: pointer; display: none;" onclick="promptWireRevert()">Done</span>
-                            <input type="checkbox" id="wire-checkbox" style="width: 18px; height: 18px; accent-color: #28a745; margin: 0; cursor: pointer;" onchange="handleWireChange(this.checked)">
-                        </div>
-                    </div>
-                    <strong style="font-size: 15px; color: #3b1e5a; display: block; margin-bottom: 5px;">ملاحظات الإدارة:</strong>
-                    <div id="notes-list-container" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
-                    <div style="display:flex; gap:5px; margin-bottom: 10px;">
-                        <input type="text" id="new-note-input" placeholder="أضف ملاحظة جديدة..." style="margin:0; padding:6px; flex:1; font-size:13px; border:1px solid #ccc; border-radius:3px; font-family: Tahoma;">
-                        <button onclick="saveNewNote()" style="background:#28a745; color:white; border:none; padding:6px 13px; border-radius:3px; cursor:pointer; font-weight:bold;">+</button>
-                    </div>
-                    <div style="border-top: 1px solid #ddd; margin-top: 10px; padding-top: 10px;">
-                        <strong style="font-size: 15px; color: #3b1e5a; display: block; margin-bottom: 5px;">تصفير العدادات:</strong>
-                        <div style="display: flex; flex-direction: column; gap: 5px;">
-                            <button onclick="resetStudentInactivity()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:7px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:13px;">تصفير الانقطاع</button>
-                            <button onclick="resetStudentAbsence()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:7px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:13px;">تصفير الغياب</button>
-                            <button onclick="resetStudentTenure()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:7px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:13px;">تجديد المجموعة</button>
-                        </div>
-                    </div>
                 </div>
             </div>
         </div>
@@ -983,6 +956,14 @@
 
     function courseNameToKey(name) {
         return String(name || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    }
+
+    // عرض اسم الدورة في إدارة المعمل (بإضافة Practical)
+    function labDisplayName(name) {
+        const n = String(name || '').trim();
+        if (!n) return n;
+        if (/ practical$/i.test(n)) return n;
+        return n + ' Practical';
     }
 
     let idleConnectionTimer = null;
@@ -1049,8 +1030,6 @@
         inactivity: { enabled: true, limit: 14, type: 'permanent', days: 7 },
         tenure: { enabled: true, limit: 3, type: 'permanent', days: 7 }
     };
-    let groupResets = {};
-    let globalGroupResetDate = null;
 
     let labCourseTasks = {};
     let allDiplomaNames = [];
@@ -1087,37 +1066,6 @@
             return { active: true, currentDay: diffToday + 1, absences: absences, limit: limit };
         }
         return { active: false, currentDay: 0, absences: 0, limit: limit };
-    }
-
-    function checkTenure(records, unblockDate, studentResetDate, groupResetDate, globalGroupReset, todayStr, limitMonths) {
-        if(records.length === 0) return { expired: false, text: "غير متوفر" };
-        records.sort((a,b) => new Date(a.date+"T00:00:00") - new Date(b.date+"T00:00:00"));
-        let baseDate = records[0].date;
-        if(globalGroupReset && globalGroupReset > baseDate) baseDate = globalGroupReset;
-        if(groupResetDate && groupResetDate > baseDate) baseDate = groupResetDate;
-        if(studentResetDate && studentResetDate > baseDate) baseDate = studentResetDate;
-        let diffDays = diffDaysSafely(baseDate, todayStr);
-        let limitDays = limitMonths * 30;
-        let text = "";
-        if(diffDays === 0) text = "اليوم أول يوم للمجموعة";
-        else if(diffDays < 30) text = diffDays + " أيام";
-        else { let m = Math.floor(diffDays / 30); let d = diffDays % 30; text = m + " شهور و " + d + " أيام"; }
-        return { expired: diffDays >= limitDays, text: text, diffDays: diffDays };
-    }
-
-    async function applyDynamicBan(phone, name, baseReason, ruleKey, currentBans) {
-        let pureP = extractPureNumber(phone);
-        let rule = banRules[ruleKey];
-        let payload = { phone: phone, name: name || 'بدون اسم', reason: baseReason, ban_date: getLocalDateString() };
-        if (rule && rule.type === 'temporary' && rule.days > 0) {
-            let d = new Date();
-            d.setDate(d.getDate() + parseInt(rule.days));
-            payload.expiry_date = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-            payload.reason += ` (مؤقت)`;
-        }
-        let p1 = database.ref('blocked_phones/' + pureP).set(payload);
-        let p2 = database.ref('student_progress/' + pureP).update({ ban_count: currentBans + 1 });
-        return Promise.all([p1, p2]);
     }
 
     let openCoursePanels = new Set();
@@ -1359,12 +1307,7 @@
 
     window.autoCalcDipEndDate = function() {
         const startVal = document.getElementById('new-dip-start-date').value;
-        document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2);
-    };
-
-    window.autoCalcEditDipEnd = function() {
-        const startVal = document.getElementById('edit-dip-start').value;
-        if (startVal) document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
+        document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2); // إدارة الدورات = شهرين
     };
 
     let editingDipId = null;
@@ -1375,9 +1318,9 @@
         if (!startVal) return;
         const context = document.getElementById('edit-dip-context').value;
         if (context === 'lab') {
-            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3);
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3); // إدارة المعمل = 3 شهور
         } else {
-            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2); // إدارة الدورات = شهرين
         }
     };
 
@@ -1388,7 +1331,12 @@
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
-        document.getElementById('edit-dip-end').value = dip.end_date || '';
+        // end_date readonly ومحسوب تلقائي = start + 2 شهور
+        if (dip.start_date) {
+            document.getElementById('edit-dip-end').value = calcEndDate(dip.start_date, 2);
+        } else {
+            document.getElementById('edit-dip-end').value = dip.end_date || '';
+        }
 
         const moneyInfoEl = document.getElementById('dip-money-info');
         moneyInfoEl.style.display = 'block';
@@ -1423,6 +1371,7 @@
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
 
+        // end_date readonly ومحسوب تلقائي = start + 3 شهور (إدارة المعمل)
         if (dip.start_date) {
             document.getElementById('edit-dip-end').value = calcEndDate(dip.start_date, 3);
         } else {
@@ -1443,12 +1392,14 @@
 
     window.saveDipDates = async function() {
         const startVal = document.getElementById('edit-dip-start').value;
-        const endVal = document.getElementById('edit-dip-end').value;
+        let endVal;
         if (editingLabDipId) {
+            // إدارة المعمل = 3 شهور
+            endVal = startVal ? calcEndDate(startVal, 3) : null;
             try {
                 await database.ref('diplomas/' + editingLabDipId).update({
                     start_date: startVal || null,
-                    end_date: endVal || null
+                    end_date: endVal
                 });
                 alert('تم حفظ فترة الدورة ✅');
                 editingLabDipId = null;
@@ -1458,10 +1409,12 @@
             return;
         }
         if (!editingDipId) return;
+        // إدارة الدورات = شهرين
+        endVal = startVal ? calcEndDate(startVal, 2) : null;
         try {
             await database.ref('diplomas/' + editingDipId).update({
                 start_date: startVal || null,
-                end_date: endVal || null
+                end_date: endVal
             });
             alert('تم حفظ فترة الدورة ✅');
             closeDipEditDatesModal();
@@ -1557,8 +1510,6 @@
                     if (s.ban_rules.inactivity) Object.assign(banRules.inactivity, s.ban_rules.inactivity);
                     if (s.ban_rules.tenure) Object.assign(banRules.tenure, s.ban_rules.tenure);
                 }
-                if (s.group_resets) groupResets = s.group_resets;
-                if (s.global_group_reset) globalGroupResetDate = s.global_group_reset;
             }
         });
     }
@@ -1575,7 +1526,6 @@
             let menuName = document.getElementById('admin-main-menu-name');
             if(menuName) menuName.innerText = currentAdminName;
             loadData();
-            setTimeout(() => { runAutoSweep(true); }, 3000);
         } else {
             currentAdminName = "";
             let displayElem = document.getElementById('admin-name-display');
@@ -1607,14 +1557,10 @@
         currentSelectedStudent = null;
         let reportModal = document.getElementById('report-modal');
         if (reportModal) reportModal.style.display = 'none';
-        let extraPanel = document.getElementById('extra-settings-panel');
-        if (extraPanel) extraPanel.style.display = 'none';
         let tbody = document.getElementById('report-tbody');
         if (tbody) tbody.innerHTML = '';
         let lmsContainer = document.getElementById('lms-container');
         if (lmsContainer) lmsContainer.innerHTML = '';
-        let notesContainer = document.getElementById('notes-list-container');
-        if (notesContainer) notesContainer.innerHTML = '';
     };
 
     window.toggleBanRule = function(ruleKey) {
@@ -2019,7 +1965,8 @@
         const number = document.getElementById('new-dip-number').value.trim();
         const price = parseInt(document.getElementById('new-dip-price').value) || 0;
         const startDate = document.getElementById('new-dip-start-date').value;
-        const endDate = document.getElementById('new-dip-end-date').value;
+        // end_date محسوب تلقائي = start + 2 شهور (إدارة الدورات)
+        const endDate = startDate ? calcEndDate(startDate, 2) : null;
 
         if (!name || !number) { alert('يرجى إدخال اسم ورقم الدورة.'); return; }
 
@@ -2036,7 +1983,7 @@
             await database.ref('diplomas').push({
                 name, number, price, courses,
                 start_date: startDate || null,
-                end_date: endDate || null,
+                end_date: endDate,
                 createdAt: new Date().toLocaleString()
             });
             alert('تم حفظ الدورة بنجاح! ✅');
@@ -2428,7 +2375,7 @@
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
-    /* ============ إدارة المجموعات (نسخة من إدارة الدورات) ============ */
+    /* ============ إدارة المجموعات (إدارة المعمل) ============ */
 
     let currentLabGroupName = null;
     let currentLabDipId = null;
@@ -2473,12 +2420,14 @@
         container.innerHTML = '';
         names.sort().forEach(name => {
             const g = groups[name];
-            const safeName = escapeForAttr(name);
-            const onclickName = escapeForJs(name);
+            // العرض في إدارة المعمل بإضافة Practical
+            const displayName = labDisplayName(name);
+            const safeDisplayName = escapeForAttr(displayName);
+            const onclickName = escapeForJs(name); // المطابقة بالاسم الأصلي
             container.innerHTML += `
                 <div class="group-card" onclick="openLabGroup('${onclickName}')">
                     <span class="group-icon">📚</span>
-                    <div class="group-name">${safeName}</div>
+                    <div class="group-name">${safeDisplayName}</div>
                     <div class="group-stats">
                         <div class="group-stat-item">
                             <span class="group-stat-value">${g.activeCount}</span>
@@ -2499,11 +2448,11 @@
     }
 
     window.openLabGroup = function(groupName) {
-        currentLabGroupName = groupName;
+        currentLabGroupName = groupName; // الاسم الأصلي للمطابقة
         document.getElementById('lab-groups-view').style.display = 'none';
         document.getElementById('lab-group-detail-view').style.display = 'block';
         document.getElementById('lab-group-copy-detail-view').style.display = 'none';
-        document.getElementById('lab-group-title').innerText = groupName;
+        document.getElementById('lab-group-title').innerText = labDisplayName(groupName); // العرض بإضافة Practical
         document.getElementById('lab-group-search-input').value = '';
         renderLabGroupCopies();
     };
@@ -2543,13 +2492,16 @@
             if (dip.start_date || dip.end_date) {
                 datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
             }
-            const safeName = escapeForAttr(dip.name || '');
+            // العرض في إدارة المعمل بإضافة Practical
+            const displayName = labDisplayName(dip.name || '');
+            const safeDisplayName = escapeForAttr(displayName);
+            const safeNameOriginal = escapeForAttr(dip.name || '');
             const safeNumber = escapeForAttr(dip.number || '');
             container.innerHTML += `
-                <div class="diploma-card ${isExpired ? 'expired' : ''}" onclick="openLabDipCopyDetail('${id}')" data-name="${safeName.toLowerCase()}" data-number="${safeNumber}">
+                <div class="diploma-card ${isExpired ? 'expired' : ''}" onclick="openLabDipCopyDetail('${id}')" data-name="${safeNameOriginal.toLowerCase()}" data-number="${safeNumber}">
                     <button class="dip-edit" onclick="event.stopPropagation(); openLabDipEditDates('${id}')" title="تعديل الفترة">⋮</button>
                     <div class="dip-num">${dip.number}</div>
-                    <div class="dip-name">${dip.name}</div>
+                    <div class="dip-name">${safeDisplayName}</div>
                     ${datesHtml}
                     <div class="dip-stats">
                         <div class="dip-stat-item">
@@ -2582,7 +2534,8 @@
         if (!dip) return;
         document.getElementById('lab-group-detail-view').style.display = 'none';
         document.getElementById('lab-group-copy-detail-view').style.display = 'block';
-        document.getElementById('lab-group-copy-title').innerText = `${dip.name} - رقم ${dip.number}`;
+        // العرض في إدارة المعمل بإضافة Practical
+        document.getElementById('lab-group-copy-title').innerText = `${labDisplayName(dip.name)} - رقم ${dip.number}`;
         await renderLabDipCopyStudents();
     };
 
@@ -2614,19 +2567,8 @@
         } catch(e) {}
 
         const keys = Object.keys(students);
-        const diplomaName = (dip.name || '').trim();
+        const diplomaName = (dip.name || '').trim(); // الاسم الأصلي للمطابقة في lab_course_tasks
         const courseList = dip.courses || [];
-
-        console.log('=== تشخيص إدارة المجموعات ===');
-        console.log('اسم الدورة (dip.name):', JSON.stringify(dip.name));
-        console.log('اسم الدورة بعد trim:', JSON.stringify(diplomaName));
-        console.log('كل المفاتيح في lab_course_tasks:', Object.keys(labCourseTasks));
-        console.log('هل فيه تطابق للدورة؟', labCourseTasks[diplomaName] ? 'نعم' : 'لا');
-        console.log('كورسات الدورة:', courseList.map(c => c.name));
-        if (labCourseTasks[diplomaName]) {
-            console.log('كورسات في lab_course_tasks:', Object.keys(labCourseTasks[diplomaName]));
-        }
-        console.log('==============================');
 
         let html = `
         <div class="excel-table-container">
@@ -2693,7 +2635,7 @@
         clone.style.direction = 'rtl';
         clone.querySelectorAll('th').forEach(th => { th.style.backgroundColor = '#fcc01a'; th.style.color = '#3b1e5a'; th.style.padding = '10px'; });
         clone.querySelectorAll('td').forEach(td => { td.style.padding = '8px'; });
-        const dipName = allDiplomas[currentLabDipId]?.name || '';
+        const dipName = labDisplayName(allDiplomas[currentLabDipId]?.name || '');
         const dipNum = allDiplomas[currentLabDipId]?.number || '';
         const blob = new Blob(['\ufeff', `<html dir="rtl" lang="ar"><head><meta charset="UTF-8"></head><body><h2 style="text-align: center; color: #3b1e5a; font-family: Tahoma;">${dipName} - رقم ${dipNum}</h2>${clone.outerHTML}</body></html>`], { type: 'application/vnd.ms-excel' });
         const url = URL.createObjectURL(blob);
@@ -3348,25 +3290,6 @@
                         let registeredGroup = extractPureNumber(existingPhoneRecords[existingPhoneRecords.length - 1].group);
                         if (registeredGroup && registeredGroup !== pureTargetGroup) { showErrorModal(SYSTEM_MESSAGES.group_mismatch); resetBtn(); return; }
                     }
-                    const progSnap = await database.ref('student_progress/' + phone).get();
-                    let progressDataObj = progSnap.exists() ? progSnap.val() : {};
-                    let unblockDate = progressDataObj.unblock_date || null;
-                    let currentBans = progressDataObj.ban_count || 0;
-                    let isVIP = checkIfStudentIsVIP(phone, dbData, progressDataObj);
-                    if (!isVIP && banRules.tenure.enabled) {
-                        let grpRecs = dbData.filter(d => extractPureNumber(d.group || '') === pureTargetGroup && d.date && d.date !== "بدون موعد" && !d.canceled);
-                        let tCheck = checkTenure(grpRecs, unblockDate, progressDataObj.tenure_reset_date, groupResets[pureTargetGroup], globalGroupResetDate, todayStr, banRules.tenure.limit);
-                        if (tCheck.expired) { try { await applyDynamicBan(phone, name, 'انتهاء صلاحية المجموعة', 'tenure', currentBans); } catch(err) {} showErrorModal(SYSTEM_MESSAGES.blocked); resetBtn(); return; }
-                    }
-                    let studentPastRecordsAll = dbData.filter(d => extractPureNumber(d.phone) === phone && !d.canceled && d.date && d.date !== "بدون موعد");
-                    if (!isVIP && banRules.inactivity.enabled) {
-                        let inactCheck = checkInactivity(studentPastRecordsAll, unblockDate, progressDataObj.inactivity_reset_date, todayStr, banRules.inactivity.limit);
-                        if (inactCheck.inactive) { try { await applyDynamicBan(phone, name, 'انقطاع عن المعمل', 'inactivity', currentBans); } catch(err) {} showErrorModal(SYSTEM_MESSAGES.blocked); resetBtn(); return; }
-                    }
-                    if (banRules.absence.enabled) {
-                        let cycleCheck = getAbsenceCycle(studentPastRecordsAll, unblockDate, progressDataObj.absence_reset_date, todayStr, banRules.absence.limit);
-                        if (cycleCheck.absences >= banRules.absence.limit) { try { await applyDynamicBan(phone, name, 'تجاوز حد الغياب', 'absence', currentBans); } catch(err) {} showErrorModal(SYSTEM_MESSAGES.blocked); resetBtn(); return; }
-                    }
                     for (let i = 0; i < appointments.length; i++) {
                         const app = appointments[i];
                         let cnt = dbData.filter(d => normalizeText(d.date) === normalizeText(app.date) && normalizeText(d.time) === normalizeText(app.time) && normalizeText(d.course) === normalizeText(course) && d.canceled !== true).length;
@@ -3384,60 +3307,6 @@
             } catch (error) { showErrorModal('خطأ: ' + error.message); resetBtn(); }
         });
     }
-
-    window.runAutoSweep = async function(isSilent = false) {
-        const btn = document.getElementById('sweep-btn');
-        if(!isSilent && btn) { btn.style.transform = 'scale(1.2)'; btn.disabled = true; }
-        let todayStr = getLocalDateString();
-        let updatesToPush = [];
-        let phoneMap = new Map();
-        let freshProgSnap = await database.ref('student_progress').get();
-        let freshProgress = freshProgSnap.exists() ? freshProgSnap.val() : {};
-        let freshBlockedSnap = await database.ref('blocked_phones').get();
-        let freshBlocked = freshBlockedSnap.exists() ? freshBlockedSnap.val() : {};
-        let freshBlockedPhones = Object.keys(freshBlocked).map(k => extractPureNumber(freshBlocked[k].phone || k));
-        allStudents.forEach(s => {
-            if(s.canceled || !s.date || s.date === "بدون موعد") return;
-            let p = extractPureNumber(s.phone);
-            if(!phoneMap.has(p)) phoneMap.set(p, []);
-            phoneMap.get(p).push(s);
-        });
-        for (let [phone, records] of phoneMap.entries()) {
-            if (freshBlockedPhones.includes(phone)) continue;
-            records.sort((a,b) => new Date(b.date+"T00:00:00") - new Date(a.date+"T00:00:00"));
-            let latestRec = records[0];
-            let name = latestRec.name || 'بدون اسم';
-            let group = latestRec.group || '';
-            let progressDataObj = freshProgress[phone] || {};
-            let unblockDate = progressDataObj.unblock_date || null;
-            let currentBans = progressDataObj.ban_count || 0;
-            let isVIP = checkIfStudentIsVIP(phone, allStudents, progressDataObj);
-            let isBanned = false, ruleTriggered = null, reason = '';
-            if(!isVIP && banRules.tenure.enabled) {
-                let pureTargetGroup = extractPureNumber(group);
-                let grpRecs = allStudents.filter(d => extractPureNumber(d.group || '') === pureTargetGroup && d.date && d.date !== "بدون موعد" && !d.canceled);
-                let tCheck = checkTenure(grpRecs, unblockDate, progressDataObj.tenure_reset_date, groupResets[pureTargetGroup], globalGroupResetDate, todayStr, banRules.tenure.limit);
-                if (tCheck.expired) { isBanned = true; ruleTriggered = 'tenure'; reason = 'انتهاء صلاحية المجموعة'; }
-            }
-            if(!isBanned && !isVIP && banRules.inactivity.enabled) {
-                let inactCheck = checkInactivity(records, unblockDate, progressDataObj.inactivity_reset_date, todayStr, banRules.inactivity.limit);
-                if (inactCheck.inactive) { isBanned = true; ruleTriggered = 'inactivity'; reason = 'انقطاع عن المعمل'; }
-            }
-            if(!isBanned && banRules.absence.enabled) {
-                let cycleCheck = getAbsenceCycle(records, unblockDate, progressDataObj.absence_reset_date, todayStr, banRules.absence.limit);
-                if (cycleCheck.absences >= banRules.absence.limit) { isBanned = true; ruleTriggered = 'absence'; reason = 'تجاوز حد الغياب'; }
-            }
-            if(isBanned) updatesToPush.push({ phone, name, reason, currentBans, ruleTriggered });
-        }
-        if(updatesToPush.length > 0) {
-            try {
-                let promises = updatesToPush.map(info => applyDynamicBan(info.phone, info.name, info.reason, info.ruleTriggered, info.currentBans));
-                await Promise.all(promises);
-                if(!isSilent) alert(`تم رصد وتقييد ${updatesToPush.length} طالب آلياً.`);
-            } catch(e) { if(!isSilent) alert('خطأ: ' + e.message); }
-        } else if(!isSilent) alert('فحص سليم! لا يوجد طلاب يستحقون القيد.');
-        if(!isSilent && btn) { btn.style.transform = 'scale(1)'; btn.disabled = false; }
-    };
 
     function switchDashboardView(viewId) {
         document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
@@ -3500,13 +3369,10 @@
             }
             if(document.getElementById('rule-abs-limit')) renderSystemSettingsUI();
         });
-        database.ref('settings/group_resets').on('value', snap => { groupResets = snap.exists() ? snap.val() : {}; });
-        database.ref('settings/global_group_reset').on('value', snap => { globalGroupResetDate = snap.exists() ? snap.val() : null; });
 
         // تاسكات المعمل - realtime
         database.ref('lab_course_tasks').on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
-            console.log('lab_course_tasks محدّث:', labCourseTasks);
             if (document.getElementById('lab-tasks-diploma-select')) {
                 renderLabTasksCourseInputs();
             }
@@ -3549,29 +3415,6 @@
                 } else renderPeriodsList(currentSelectedDate);
             } else renderDatesList();
             updateAdminSubmissionsBell();
-        });
-
-        database.ref('blocked_phones').on('value', (snapshot) => {
-            blockedPhonesList = [];
-            if (snapshot.exists()) snapshot.forEach(child => {
-                blockedPhonesList.push({
-                    id: child.key, phone: child.val().phone || child.key, name: child.val().name,
-                    reason: child.val().reason || 'حظر يدوي من الإدارة',
-                    expiry_date: child.val().expiry_date || null, ban_date: child.val().ban_date || '-'
-                });
-            });
-            let todayStr = getLocalDateString();
-            let hasExpired = false;
-            blockedPhonesList.forEach(b => {
-                if(b.expiry_date && b.expiry_date <= todayStr) {
-                    hasExpired = true;
-                    let pureP = extractPureNumber(b.phone);
-                    database.ref('blocked_phones/' + pureP).remove();
-                    if(b.id !== pureP) database.ref('blocked_phones/' + b.id).remove();
-                    let targetedUpdates = getTargetedUnblockUpdates(b.reason, todayStr);
-                    database.ref('student_progress/' + pureP).update(targetedUpdates);
-                }
-            });
         });
 
         database.ref('student_progress').on('value', (snapshot) => {
@@ -3741,11 +3584,6 @@
         else { panel.style.display = "block"; btn.classList.add('active'); openCoursePanels.add(courseKey); }
     }
 
-    function toggleExtraSettings() {
-        let panel = document.getElementById('extra-settings-panel');
-        panel.style.display = panel.style.display === 'block' ? 'none' : 'block';
-    }
-
     window.toggleLegacyTask = async function(phone, courseKey, taskKey, currentState) {
         let newState = !currentState;
         let pureP = extractPureNumber(phone);
@@ -3795,64 +3633,6 @@
             selectStudent(phone);
         } catch (e) { alert('خطأ: ' + e.message); }
     };
-
-    window.handleWireChange = async function(isChecked) {
-        if(!currentSelectedStudent) return;
-        try {
-            await database.ref(`student_progress/${extractPureNumber(currentSelectedStudent)}`).update({ wire_received: isChecked, wire_by: isChecked ? currentAdminName : null });
-            document.getElementById('wire-checkbox').style.display = 'none';
-            let wireText = document.getElementById('wire-status-text');
-            wireText.style.display = 'inline-block';
-            wireText.title = currentAdminName;
-        } catch (err) { alert('خطأ: ' + err.message); }
-    };
-
-    window.promptWireRevert = async function() {
-        if(!currentSelectedStudent) return;
-        if(confirm("تأكيد التراجع؟")) {
-            try {
-                await database.ref(`student_progress/${extractPureNumber(currentSelectedStudent)}`).update({ wire_received: false, wire_by: null });
-                let wireText = document.getElementById('wire-status-text');
-                wireText.style.display = 'none'; wireText.title = '';
-                let cb = document.getElementById('wire-checkbox');
-                cb.style.display = 'inline-block'; cb.checked = false;
-            } catch (err) { alert('خطأ: ' + err.message); }
-        }
-    };
-
-    window.saveNewNote = async function() {
-        let input = document.getElementById('new-note-input');
-        let text = input.value.trim();
-        if(!text || !currentSelectedStudent) return;
-        try {
-            await database.ref(`student_progress/${extractPureNumber(currentSelectedStudent)}/notesLog`).push({ text, date: getLocalDateString(), by: currentAdminName });
-            input.value = '';
-            const progSnap = await database.ref('student_progress/' + extractPureNumber(currentSelectedStudent)).get();
-            renderNotesList(progSnap.exists() ? progSnap.val().notesLog || {} : {});
-        } catch(e) { alert('خطأ: ' + e.message); }
-    };
-
-    window.deleteNote = async function(noteId) {
-        if(!confirm('حذف الملاحظة؟') || !currentSelectedStudent) return;
-        try {
-            await database.ref(`student_progress/${extractPureNumber(currentSelectedStudent)}/notesLog/${noteId}`).remove();
-            const progSnap = await database.ref('student_progress/' + extractPureNumber(currentSelectedStudent)).get();
-            renderNotesList(progSnap.exists() ? progSnap.val().notesLog || {} : {});
-        } catch(e) { alert(e.message); }
-    };
-
-    function renderNotesList(notesObj) {
-        let container = document.getElementById('notes-list-container');
-        container.innerHTML = '';
-        let keys = Object.keys(notesObj);
-        if(keys.length === 0) { container.innerHTML = '<div style="color:#aaa; font-size:12px; text-align:center;">لا توجد ملاحظات</div>'; return; }
-        keys.forEach(key => {
-            let note = notesObj[key];
-            let byText = note.by ? ` title="${note.by}"` : '';
-            container.innerHTML += `<div style="background:#f4f4f4; padding:8px; border-radius:5px; margin-bottom:5px; position:relative; font-size:13px; color:black; border: 1px solid #ddd; padding-left: 20px;"><button onclick="deleteNote('${key}')" style="position:absolute; top:4px; left:4px; background:none; border:none; color:#cc0000; cursor:pointer; font-size:12px;" title="حذف">✖</button><div style="word-wrap:break-word; font-family: Tahoma; line-height: 1.5;">${note.text}</div><div style="font-size:11px; color:#aaa; text-align:left; margin-top:4px; width:fit-content; cursor:help;" ${byText}>${note.date}</div></div>`;
-        });
-        container.scrollTop = container.scrollHeight;
-    }
 
     function buildLMSUI(phone, completedTasksSet, studentProgressData) {
         let container = document.getElementById('lms-container'); container.innerHTML = '';
@@ -4020,7 +3800,6 @@
 
     async function selectStudent(studentPhoneParam) {
         let todayStr = getLocalDateString();
-        document.getElementById('extra-settings-panel').style.display = 'none';
         let targetPhone = extractPureNumber(studentPhoneParam); currentSelectedStudent = targetPhone;
         document.getElementById('search-student').value = '';
         document.getElementById('search-suggestions').style.display = 'none';
@@ -4035,9 +3814,6 @@
             studentPhone = allStudentRecords[allStudentRecords.length - 1].phone;
             pureGroupNum = extractPureNumber(allStudentRecords[allStudentRecords.length - 1].group);
             validRecords = allStudentRecords.filter(s => !s.canceled && s.date && s.date !== "بدون موعد");
-        } else {
-            let bRec = blockedPhonesList.find(b => extractPureNumber(b.phone) === targetPhone);
-            if(bRec && bRec.name) latestName = bRec.name + " (طالب محذوف)";
         }
         let lastAttended = 'لا يوجد حضور'; let attendedRecords = validRecords.filter(s => s.attended);
         if(attendedRecords.length > 0) { attendedRecords.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)); lastAttended = attendedRecords[0].date; }
@@ -4060,9 +3836,6 @@
         let cycleCheck = getAbsenceCycle(allStudentRecords, unblockDate, studentProgressData.absence_reset_date, todayStr, banRules.absence.limit);
         let cycleText = cycleCheck.active ? `${cycleCheck.currentDay}/14 (${cycleCheck.absences})` : `0/14 (0)`;
         document.getElementById('report-absence-cycle').innerText = cycleText;
-        let groupRecordsForTenure = allStudents.filter(s => extractPureNumber(s.group) === pureGroupNum && s.date && s.date !== "بدون موعد" && !s.canceled);
-        let tCheck = checkTenure(groupRecordsForTenure, unblockDate, studentProgressData.tenure_reset_date, groupResets[pureGroupNum], globalGroupResetDate, todayStr, banRules.tenure.limit);
-        document.getElementById('report-group-tenure').innerText = tCheck.text;
         let tbody = document.getElementById('report-tbody'); tbody.innerHTML = '';
         let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
         if (validRecords.length === 0) tbody.innerHTML = `<tr><td colspan="5" style="padding: 10px; color: red; text-align: center; font-weight: bold;">لا توجد مواعيد مسجلة</td></tr>`;
@@ -4089,20 +3862,6 @@
                 tbody.innerHTML += `<tr style="${bgStyle}"><td style="padding: 8px;">${rec.course || ''}</td><td style="padding: 8px;">${rec.date || ''}</td><td style="padding: 8px;">${rec.time || ''}</td><td style="padding: 8px;">${taskHTML}</td><td style="padding: 8px;">${statusHTML}</td></tr>`;
             });
         }
-        let isWireReceived = studentProgressData.wire_received || false;
-        let wireCheckbox = document.getElementById('wire-checkbox');
-        let wireText = document.getElementById('wire-status-text');
-        if(isWireReceived) {
-            wireCheckbox.style.display = 'none';
-            wireText.style.display = 'inline-block';
-            wireText.title = studentProgressData.wire_by || '';
-        } else {
-            wireCheckbox.style.display = 'inline-block';
-            wireCheckbox.checked = false;
-            wireText.style.display = 'none';
-            wireText.title = '';
-        }
-        renderNotesList(studentProgressData.notesLog || {});
         buildLMSUI(extractPureNumber(studentPhone), cTasks, studentProgressData);
         let isVIP = checkIfStudentIsVIP(extractPureNumber(studentPhone), allStudents, studentProgressData);
         let certDel = studentProgressData.cert_delivered || {};
@@ -4259,7 +4018,7 @@
 
         const savedForDiploma = labCourseTasks[diplomaName] || {};
         let html = `<div style="background:white; padding:15px; border-radius:8px; border:2px solid #fcc01a;">`;
-        html += `<h4 style="margin-top:0; color:#3b1e5a; border-bottom:1px solid #ddd; padding-bottom:8px;">${diplomaName}</h4>`;
+        html += `<h4 style="margin-top:0; color:#3b1e5a; border-bottom:1px solid #ddd; padding-bottom:8px;">${escapeForAttr(diplomaName)}</h4>`;
         courseNames.forEach(cName => {
             const safeName = escapeForAttr(cName);
             const currVal = (savedForDiploma[cName] && savedForDiploma[cName].tasks) || 0;
@@ -4284,10 +4043,6 @@
             const val = parseInt(inp.value) || 0;
             updates[cName] = { tasks: val };
         });
-        console.log('=== حفظ تاسكات ===');
-        console.log('اسم الدورة:', JSON.stringify(diplomaName));
-        console.log('البيانات المبعوتة:', updates);
-        console.log('المسار:', 'lab_course_tasks/' + diplomaName);
         try {
             await database.ref('lab_course_tasks/' + diplomaName).update(updates);
             alert('تم حفظ تاسكات الدورة ✅');
