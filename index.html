@@ -424,7 +424,6 @@
             text-align: center;
             font-weight: bold;
         }
-        /* ----------------------------------- */
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -548,7 +547,7 @@
 <div class="modal-overlay" id="dip-edit-dates-modal" style="z-index: 1008;">
     <div class="modal-content" style="max-width: 450px; text-align: right;">
         <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">تعديل فترة الدورة</h3>
-        <div class="dip-money-info" id="dip-money-info"></div>
+        <div class="dip-money-info" id="dip-money-info" style="display: none;"></div>
         <label>بداية الدورة:</label>
         <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
         <label>نهاية الدورة:</label>
@@ -1021,7 +1020,6 @@
     const escapeForAttr = (str) => String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapeForJs = (str) => String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
 
-    // تحويل اسم الكورس إلى key متوافق مع student_progress
     function courseNameToKey(name) {
         return String(name || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     }
@@ -1093,9 +1091,8 @@
     let groupResets = {};
     let globalGroupResetDate = null;
 
-    // ===== تاسكات المعمل =====
-    let labCourseTasks = {}; // { diplomaName: { courseName: tasks } }
-    let allDiplomaNames = []; // أسماء الدورات المتاحة
+    let labCourseTasks = {};
+    let allDiplomaNames = [];
 
     function checkInactivity(records, unblockDate, resetDate, todayStr, limit) {
         let validRecs = records.filter(r => !r.canceled && r.date && r.date !== "بدون موعد");
@@ -1441,6 +1438,7 @@
         document.getElementById('edit-dip-end').value = dip.end_date || '';
 
         const moneyInfoEl = document.getElementById('dip-money-info');
+        moneyInfoEl.style.display = 'block';
         moneyInfoEl.innerHTML = '<div style="text-align:center; color:#666; font-size:14px;">جاري تحميل البيانات...</div>';
         document.getElementById('dip-edit-dates-modal').style.display = 'flex';
 
@@ -1472,28 +1470,11 @@
         document.getElementById('edit-dip-start').value = dip.start_date || '';
         document.getElementById('edit-dip-end').value = dip.end_date || '';
 
+        // في إدارة المعمل: نخفي قسم الحسابات
         const moneyInfoEl = document.getElementById('dip-money-info');
-        moneyInfoEl.innerHTML = '<div style="text-align:center; color:#666; font-size:14px;">جاري تحميل البيانات...</div>';
+        moneyInfoEl.style.display = 'none';
+        moneyInfoEl.innerHTML = '';
         document.getElementById('dip-edit-dates-modal').style.display = 'flex';
-
-        try {
-            const snap = await database.ref('diploma_students/' + id).get();
-            const students = snap.exists() ? snap.val() : {};
-            const count = Object.keys(students).length;
-            const totalPaid = Object.values(students).reduce((sum, st) => sum + (parseInt(st.paid) || 0), 0);
-            const totalExpected = count * (dip.price || 0);
-            const remaining = totalExpected - totalPaid;
-
-            moneyInfoEl.innerHTML = `
-                <div class="dip-money-row"><span class="dip-money-label">👥 عدد الطلاب:</span><span class="dip-money-value">${count}</span></div>
-                <div class="dip-money-row"><span class="dip-money-label">💰 سعر الفرد:</span><span class="dip-money-value">${(dip.price || 0).toLocaleString()} ج.م</span></div>
-                <div class="dip-money-row"><span class="dip-money-label">📊 المطلوب الكلي:</span><span class="dip-money-value">${totalExpected.toLocaleString()} ج.م</span></div>
-                <div class="dip-money-row"><span class="dip-money-label">✅ المحصّل:</span><span class="dip-money-value">${totalPaid.toLocaleString()} ج.م</span></div>
-                <div class="dip-money-row"><span class="dip-money-label">⏳ المتبقي:</span><span class="dip-money-value pending">${remaining.toLocaleString()} ج.م</span></div>
-            `;
-        } catch(e) {
-            moneyInfoEl.innerHTML = '<div style="color:#cc0000; text-align:center; font-size:14px;">خطأ في تحميل البيانات</div>';
-        }
     };
 
     window.closeDipEditDatesModal = function() {
@@ -2600,7 +2581,7 @@
             const dipStudents = allDiplomaStudents[id] || {};
             const studentCount = Object.keys(dipStudents).length;
             const isExpired = dip.end_date && dip.end_date < todayStr;
-            let coursesText = (dip.courses || []).map(c => `${c.name} (${c.lectures})`).join(' • ');
+            // في إدارة المعمل: نخفي سطر الكورسات
             let datesHtml = '';
             if (dip.start_date || dip.end_date) {
                 datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
@@ -2613,7 +2594,6 @@
                     <div class="dip-num">${dip.number}</div>
                     <div class="dip-name">${dip.name}</div>
                     ${datesHtml}
-                    <div class="dip-courses">${coursesText}</div>
                     <div class="dip-stats">
                         <div class="dip-stat-item">
                             <span class="dip-stat-value">${studentCount}</span>
@@ -3499,6 +3479,9 @@
         if (activeBtn) activeBtn.classList.add('active');
         if (viewId === 'groups') {
             backToLabGroups();
+        } else if (viewId === 'sysSettings') {
+            populateLabTasksDiplomaSelect();
+            renderSystemSettingsUI();
         }
     }
 
@@ -3552,13 +3535,24 @@
         database.ref('settings/group_resets').on('value', snap => { groupResets = snap.exists() ? snap.val() : {}; });
         database.ref('settings/global_group_reset').on('value', snap => { globalGroupResetDate = snap.exists() ? snap.val() : null; });
 
-        // تاسكات المعمل
+        // تاسكات المعمل - realtime تحديث الجدول
         database.ref('lab_course_tasks').on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
             if (document.getElementById('lab-tasks-diploma-select')) {
                 renderLabTasksCourseInputs();
             }
             if (currentLabDipId) renderLabDipCopyStudents();
+        });
+
+        // تحديث أسماء الدورات في select إدارة التاسكات
+        database.ref('diplomas').on('value', snap => {
+            const diplomas = snap.exists() ? snap.val() : {};
+            const namesSet = new Set();
+            Object.values(diplomas).forEach(d => {
+                if (d.name) namesSet.add(d.name.trim());
+            });
+            allDiplomaNames = Array.from(namesSet).sort();
+            populateLabTasksDiplomaSelect();
         });
 
         database.ref('students').on('value', (snapshot) => {
@@ -4520,7 +4514,6 @@
             return;
         }
 
-        // نجيب كورسات الدورة من أي نسخة من نفس الاسم
         let coursesMap = {};
         Object.values(allDiplomas).forEach(d => {
             if ((d.name || '').trim() === diplomaName && d.courses) {
@@ -4542,9 +4535,10 @@
         courseNames.forEach(cName => {
             const safeName = escapeForAttr(cName);
             const currVal = (savedForDiploma[cName] && savedForDiploma[cName].tasks) || 0;
+            const inputId = 'lab-tasks-input-' + safeName.replace(/[^a-zA-Z0-9]/g, '_');
             html += `<div class="lab-tasks-course-row">
                 <label>${safeName}</label>
-                <input type="number" min="0" step="1" id="lab-tasks-input-${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" value="${currVal}" placeholder="عدد التاسكات" data-course-name="${safeName}">
+                <input type="number" min="0" step="1" id="${inputId}" value="${currVal}" placeholder="عدد التاسكات" data-course-name="${safeName}">
             </div>`;
         });
         html += `<button type="button" class="add-btn" style="margin-top:10px;" onclick="saveLabCourseTasksForDiploma('${escapeForJs(diplomaName)}')">حفظ تاسكات هذه الدورة</button>`;
@@ -4568,20 +4562,9 @@
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
-    // هنضيف Populate للـ select لما نفتح إعدادات النظام
-    const _originalSwitchDashboardView = switchDashboardView;
-    window.switchDashboardView = function(viewId) {
-        _originalSwitchDashboardView(viewId);
-        if (viewId === 'sysSettings') {
-            populateLabTasksDiplomaSelect();
-            renderSystemSettingsUI();
-        }
-    };
-
-    // تعريف stub لدوال إعدادات النظام لو مش موجودة (لضمان عدم وجود أخطاء)
+    // Stubs لإعدادات النظام لو مش معرّفة
     if (typeof renderSystemSettingsUI !== 'function') {
         window.renderSystemSettingsUI = function() {
-            // تحديث زر إغلاق الفترات
             const btn = document.getElementById('btn-block-late');
             if (btn) {
                 btn.innerText = isLateBookingBlocked ? 'مفعل' : 'موقوف';
