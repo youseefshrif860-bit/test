@@ -958,6 +958,26 @@
         return String(name || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     }
 
+    // مطابقة ذكية لأسماء الدورات والكورسات (case-insensitive + trim + إزالة المسافات الزائدة)
+    function findCourseTasksSmart(diplomaName, courseName) {
+        if (!labCourseTasks || !diplomaName || !courseName) return 0;
+        const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
+        const targetDiplomaKey = norm(diplomaName);
+        const targetCourseKey = norm(courseName);
+        let diplomaEntry = null;
+        for (const dKey of Object.keys(labCourseTasks)) {
+            if (norm(dKey) === targetDiplomaKey) { diplomaEntry = labCourseTasks[dKey]; break; }
+        }
+        if (!diplomaEntry) return 0;
+        for (const cKey of Object.keys(diplomaEntry)) {
+            if (norm(cKey) === targetCourseKey) {
+                const val = diplomaEntry[cKey];
+                return (val && typeof val === 'object' && val.tasks !== undefined) ? (parseInt(val.tasks) || 0) : 0;
+            }
+        }
+        return 0;
+    }
+
     // عرض اسم الدورة في إدارة المعمل (بإضافة Practical)
     function labDisplayName(name) {
         const n = String(name || '').trim();
@@ -1397,7 +1417,6 @@
         document.getElementById('dip-edit-dates-modal').style.display = 'none';
     };
 
-    // الحفظ: بياخد القيمة اللي في end_date (سواء تلقائية أو معدلة)
     window.saveDipDates = async function() {
         const startVal = document.getElementById('edit-dip-start').value;
         const endVal = document.getElementById('edit-dip-end').value;
@@ -1969,10 +1988,8 @@
         const number = document.getElementById('new-dip-number').value.trim();
         const price = parseInt(document.getElementById('new-dip-price').value) || 0;
         const startDate = document.getElementById('new-dip-start-date').value;
-        // end_date_courses: القيمة اللي المستخدم كتبها أو المعدلة (fallback: start + 2 شهور)
         let endDateCourses = document.getElementById('new-dip-end-date').value;
         if (!endDateCourses && startDate) endDateCourses = calcEndDate(startDate, 2);
-        // end_date_lab: دايماً محسوب من start_date = 3 شهور
         const endDateLab = startDate ? calcEndDate(startDate, 3) : null;
 
         if (!name || !number) { alert('يرجى إدخال اسم ورقم الدورة.'); return; }
@@ -2612,8 +2629,7 @@
 
                 courseList.forEach(course => {
                     const courseKey = courseNameToKey(course.name);
-                    const courseCfgFromTasks = (labCourseTasks[diplomaName] && labCourseTasks[diplomaName][course.name]) || 0;
-                    const totalTasks = parseInt(courseCfgFromTasks) || 0;
+                    const totalTasks = findCourseTasksSmart(diplomaName, course.name);
                     let completed = 0;
                     const cProg = stProg[courseKey] || {};
                     for (let i = 1; i <= totalTasks; i++) {
@@ -3394,7 +3410,6 @@
             const diplomas = snap.exists() ? snap.val() : {};
             allDiplomas = diplomas;
 
-            // Migration: إضافة الحقول الجديدة للدورات القديمة اللي عندها end_date بس
             Object.keys(diplomas).forEach(id => {
                 const dip = diplomas[id];
                 if (!dip) return;
@@ -4040,12 +4055,11 @@
             return;
         }
 
-        const savedForDiploma = labCourseTasks[diplomaName] || {};
         let html = `<div style="background:white; padding:15px; border-radius:8px; border:2px solid #fcc01a;">`;
         html += `<h4 style="margin-top:0; color:#3b1e5a; border-bottom:1px solid #ddd; padding-bottom:8px;">${escapeForAttr(diplomaName)}</h4>`;
         courseNames.forEach(cName => {
             const safeName = escapeForAttr(cName);
-            const currVal = (savedForDiploma[cName] && savedForDiploma[cName].tasks) || 0;
+            const currVal = findCourseTasksSmart(diplomaName, cName);
             const inputId = 'lab-tasks-input-' + safeName.replace(/[^a-zA-Z0-9]/g, '_');
             html += `<div class="lab-tasks-course-row">
                 <label>${safeName}</label>
