@@ -398,6 +398,33 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
             50%     { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
         }
+
+        .lab-tasks-course-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            background: rgba(255,255,255,0.08);
+            padding: 12px;
+            border-radius: 6px;
+            margin-bottom: 8px;
+            gap: 10px;
+        }
+        .lab-tasks-course-row label {
+            font-weight: bold;
+            color: #fcc01a;
+            flex: 1;
+            font-size: 15px;
+        }
+        .lab-tasks-course-row input {
+            width: 100px;
+            margin: 0;
+            padding: 8px;
+            border: 2px solid #fcc01a;
+            border-radius: 5px;
+            text-align: center;
+            font-weight: bold;
+        }
+        /* ----------------------------------- */
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -895,6 +922,15 @@
                 <div id="courses-settings-container"></div>
                 <div id="support-settings-container"></div>
                 <div id="messages-settings-container"></div>
+                <div class="settings-card" id="lab-tasks-settings-card">
+                    <h4>إدارة تاسكات المعمل</h4>
+                    <p style="font-size: 14px; color: #ddd; margin: 0 0 15px 0;">اختر الدورة، ثم حدد عدد التاسكات لكل كورس. الأرقام دي هتطبق على كل نسخ الدورة اللي بنفس الاسم.</p>
+                    <label>اختر الدورة:</label>
+                    <select id="lab-tasks-diploma-select" onchange="renderLabTasksCourseInputs()">
+                        <option value="">-- اختر دورة --</option>
+                    </select>
+                    <div id="lab-tasks-course-inputs" style="margin-top: 15px;"></div>
+                </div>
                 <button class="add-btn" style="margin-top: 15px;" onclick="saveSystemSettings()">حفظ كافة إعدادات النظام</button>
             </div>
         </div>
@@ -985,6 +1021,11 @@
     const escapeForAttr = (str) => String(str || '').replace(/&/g, '&amp;').replace(/"/g, '&quot;').replace(/'/g, '&#39;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
     const escapeForJs = (str) => String(str || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '&quot;').replace(/\n/g, ' ');
 
+    // تحويل اسم الكورس إلى key متوافق مع student_progress
+    function courseNameToKey(name) {
+        return String(name || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
+    }
+
     let idleConnectionTimer = null;
     function scheduleStudentOffline() {
         if (auth.currentUser) return;
@@ -1051,6 +1092,10 @@
     };
     let groupResets = {};
     let globalGroupResetDate = null;
+
+    // ===== تاسكات المعمل =====
+    let labCourseTasks = {}; // { diplomaName: { courseName: tasks } }
+    let allDiplomaNames = []; // أسماء الدورات المتاحة
 
     function checkInactivity(records, unblockDate, resetDate, todayStr, limit) {
         let validRecs = records.filter(r => !r.canceled && r.date && r.date !== "بدون موعد");
@@ -2632,7 +2677,8 @@
         } catch(e) {}
 
         const keys = Object.keys(students);
-        const courseKeys = Object.keys(LMS_COURSES);
+        const diplomaName = (dip.name || '').trim();
+        const courseList = dip.courses || [];
 
         let html = `
         <div class="excel-table-container">
@@ -2643,14 +2689,14 @@
                         <th>الاسم</th>
                         <th>الرقم</th>
                         <th>الكلية</th>
-                        ${courseKeys.map(ck => `<th>${LMS_COURSES[ck].title}</th>`).join('')}
+                        ${courseList.map(c => `<th>${c.name}</th>`).join('')}
                     </tr>
                 </thead>
                 <tbody>
         `;
 
         if (keys.length === 0) {
-            html += `<tr><td colspan="${4 + courseKeys.length}" style="padding: 20px; color: #888; text-align: center;">لا يوجد طلاب مسجلين في هذه الدورة</td></tr>`;
+            html += `<tr><td colspan="${4 + courseList.length}" style="padding: 20px; color: #888; text-align: center;">لا يوجد طلاب مسجلين في هذه الدورة</td></tr>`;
         } else {
             keys.forEach((sid, index) => {
                 const st = students[sid];
@@ -2664,19 +2710,14 @@
                     <td onclick="openWhatsApp('${st.phone}')" style="padding: 6px; border: 1px solid #ddd; font-family: Tahoma; cursor: pointer; color: inherit; text-decoration: none;" title="مراسلة عبر واتساب">${st.phone || ''}</td>
                     <td style="padding: 6px; border: 1px solid #ddd;">${st.college || '-'}</td>`;
 
-                courseKeys.forEach(ck => {
-                    const courseCfg = LMS_COURSES[ck];
-                    const totalTasks = courseCfg.tasks + (courseCfg.exam ? 1 : 0);
+                courseList.forEach(course => {
+                    const courseKey = courseNameToKey(course.name);
+                    const courseCfgFromTasks = (labCourseTasks[diplomaName] && labCourseTasks[diplomaName][course.name]) || 0;
+                    const totalTasks = parseInt(courseCfgFromTasks) || 0;
                     let completed = 0;
-                    const cProg = stProg[ck] || {};
-                    for (let i = 1; i <= courseCfg.tasks; i++) {
+                    const cProg = stProg[courseKey] || {};
+                    for (let i = 1; i <= totalTasks; i++) {
                         if (cProg[`task_${i}`]) completed++;
-                    }
-                    if (courseCfg.exam && cProg['exam']) completed++;
-                    if (cProg.extra_tasks) {
-                        Object.values(cProg.extra_tasks).forEach(item => {
-                            if (typeof item === 'object' && item && item.completed) completed++;
-                        });
                     }
                     const isDone = totalTasks > 0 && completed >= totalTasks;
                     const color = isDone ? '#28a745' : (completed > 0 ? '#fcc01a' : '#cc0000');
@@ -3510,6 +3551,15 @@
         });
         database.ref('settings/group_resets').on('value', snap => { groupResets = snap.exists() ? snap.val() : {}; });
         database.ref('settings/global_group_reset').on('value', snap => { globalGroupResetDate = snap.exists() ? snap.val() : null; });
+
+        // تاسكات المعمل
+        database.ref('lab_course_tasks').on('value', snap => {
+            labCourseTasks = snap.exists() ? snap.val() : {};
+            if (document.getElementById('lab-tasks-diploma-select')) {
+                renderLabTasksCourseInputs();
+            }
+            if (currentLabDipId) renderLabDipCopyStudents();
+        });
 
         database.ref('students').on('value', (snapshot) => {
             allStudents = [];
@@ -4432,6 +4482,131 @@
     function backToPeriods() { currentSelectedPeriod = null; renderPeriodsList(currentSelectedDate); }
     function deleteAllInPeriod() { if (confirm(`حذف؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate && s.time === currentSelectedPeriod).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToPeriods); } }
     function deleteAllInDay() { if (confirm(`حذف اليوم بالكامل؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToDates); } }
+
+    /* ============ إعدادات النظام - إدارة تاسكات المعمل ============ */
+
+    async function populateLabTasksDiplomaSelect() {
+        const select = document.getElementById('lab-tasks-diploma-select');
+        if (!select) return;
+        try {
+            const snap = await database.ref('diplomas').get();
+            const diplomas = snap.exists() ? snap.val() : {};
+            const namesSet = new Set();
+            Object.values(diplomas).forEach(d => {
+                if (d.name) namesSet.add(d.name.trim());
+            });
+            const currentVal = select.value;
+            select.innerHTML = '<option value="">-- اختر دورة --</option>';
+            Array.from(namesSet).sort().forEach(name => {
+                const opt = document.createElement('option');
+                opt.value = name;
+                opt.text = name;
+                select.appendChild(opt);
+            });
+            if (currentVal && namesSet.has(currentVal)) select.value = currentVal;
+        } catch(e) {
+            console.error(e);
+        }
+    }
+
+    window.renderLabTasksCourseInputs = function() {
+        const select = document.getElementById('lab-tasks-diploma-select');
+        const container = document.getElementById('lab-tasks-course-inputs');
+        if (!select || !container) return;
+        const diplomaName = select.value;
+        container.innerHTML = '';
+        if (!diplomaName) {
+            container.innerHTML = '<div class="empty-state" style="background:white; color:#666; padding:20px; border-radius:8px;">اختر دورة لعرض كورساتها</div>';
+            return;
+        }
+
+        // نجيب كورسات الدورة من أي نسخة من نفس الاسم
+        let coursesMap = {};
+        Object.values(allDiplomas).forEach(d => {
+            if ((d.name || '').trim() === diplomaName && d.courses) {
+                d.courses.forEach(c => {
+                    if (!coursesMap[c.name]) coursesMap[c.name] = true;
+                });
+            }
+        });
+        const courseNames = Object.keys(coursesMap);
+
+        if (courseNames.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="background:white; color:#666; padding:20px; border-radius:8px;">لا توجد كورسات في هذه الدورة</div>';
+            return;
+        }
+
+        const savedForDiploma = labCourseTasks[diplomaName] || {};
+        let html = `<div style="background:white; padding:15px; border-radius:8px; border:2px solid #fcc01a;">`;
+        html += `<h4 style="margin-top:0; color:#3b1e5a; border-bottom:1px solid #ddd; padding-bottom:8px;">${diplomaName}</h4>`;
+        courseNames.forEach(cName => {
+            const safeName = escapeForAttr(cName);
+            const currVal = (savedForDiploma[cName] && savedForDiploma[cName].tasks) || 0;
+            html += `<div class="lab-tasks-course-row">
+                <label>${safeName}</label>
+                <input type="number" min="0" step="1" id="lab-tasks-input-${safeName.replace(/[^a-zA-Z0-9]/g, '_')}" value="${currVal}" placeholder="عدد التاسكات" data-course-name="${safeName}">
+            </div>`;
+        });
+        html += `<button type="button" class="add-btn" style="margin-top:10px;" onclick="saveLabCourseTasksForDiploma('${escapeForJs(diplomaName)}')">حفظ تاسكات هذه الدورة</button>`;
+        html += `</div>`;
+        container.innerHTML = html;
+    };
+
+    window.saveLabCourseTasksForDiploma = async function(diplomaName) {
+        const container = document.getElementById('lab-tasks-course-inputs');
+        if (!container) return;
+        const inputs = container.querySelectorAll('input[data-course-name]');
+        let updates = {};
+        inputs.forEach(inp => {
+            const cName = inp.getAttribute('data-course-name');
+            const val = parseInt(inp.value) || 0;
+            updates[cName] = { tasks: val };
+        });
+        try {
+            await database.ref('lab_course_tasks/' + diplomaName).update(updates);
+            alert('تم حفظ تاسكات الدورة ✅');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    // هنضيف Populate للـ select لما نفتح إعدادات النظام
+    const _originalSwitchDashboardView = switchDashboardView;
+    window.switchDashboardView = function(viewId) {
+        _originalSwitchDashboardView(viewId);
+        if (viewId === 'sysSettings') {
+            populateLabTasksDiplomaSelect();
+            renderSystemSettingsUI();
+        }
+    };
+
+    // تعريف stub لدوال إعدادات النظام لو مش موجودة (لضمان عدم وجود أخطاء)
+    if (typeof renderSystemSettingsUI !== 'function') {
+        window.renderSystemSettingsUI = function() {
+            // تحديث زر إغلاق الفترات
+            const btn = document.getElementById('btn-block-late');
+            if (btn) {
+                btn.innerText = isLateBookingBlocked ? 'مفعل' : 'موقوف';
+                btn.className = 'toggle-btn ' + (isLateBookingBlocked ? 'btn-enable' : 'btn-inactive');
+            }
+            const lateOffsetContainer = document.getElementById('late-offset-container');
+            if (lateOffsetContainer) lateOffsetContainer.style.display = isLateBookingBlocked ? 'block' : 'none';
+            const lateOffsetInput = document.getElementById('late-booking-offset');
+            if (lateOffsetInput) lateOffsetInput.value = lateBookingOffsetHours;
+        };
+    }
+    if (typeof saveSystemSettings !== 'function') {
+        window.saveSystemSettings = async function() {
+            try {
+                const lateOffsetVal = parseFloat(document.getElementById('late-booking-offset').value) || 0;
+                await database.ref('settings/lateBookingOffset').set(lateOffsetVal);
+                alert('تم حفظ إعدادات النظام ✅');
+            } catch(e) { alert('خطأ: ' + e.message); }
+        };
+    }
+    if (typeof toggleBlockLateBooking !== 'function') {
+        window.toggleBlockLateBooking = function() {
+            database.ref('settings/blockLateBooking').set(!isLateBookingBlocked).catch(e => alert(e.message));
+        };
+    }
 </script>
 </body>
 </html>
