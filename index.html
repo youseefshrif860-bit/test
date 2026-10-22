@@ -401,6 +401,94 @@
         }
         /* ----------------------------------- */
 
+        /* ===== إدارة المجموعات (View جديد) ===== */
+        .group-overview-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 20px;
+        }
+        .group-overview-card {
+            background: linear-gradient(135deg, #4c2673, #2a1540);
+            border: 2px solid #fcc01a;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: 0.3s;
+            position: relative;
+            text-align: center;
+        }
+        .group-overview-card:hover {
+            transform: scale(1.03);
+            box-shadow: 0 5px 20px rgba(252,192,26,0.3);
+        }
+        .group-overview-card .g-num {
+            font-size: 32px;
+            font-weight: bold;
+            color: #fcc01a;
+        }
+        .group-overview-card .g-tenure {
+            font-size: 13px;
+            color: #ddd;
+            margin-top: 8px;
+            line-height: 1.6;
+        }
+        .group-overview-card .g-tenure strong { color: #fcc01a; }
+        .group-overview-card .g-stats {
+            display: flex;
+            justify-content: space-around;
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(252,192,26,0.3);
+        }
+        .group-overview-card .g-stat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
+        .group-overview-card .g-stat-value { font-size: 22px; font-weight: bold; color: #28a745; }
+        .group-overview-card .g-stat-value.total { color: #fcc01a; }
+        .group-overview-card .g-stat-label { font-size: 12px; color: #ccc; }
+
+        .group-detail-header {
+            background: rgba(255,255,255,0.08);
+            border: 2px solid #fcc01a;
+            border-radius: 10px;
+            padding: 15px;
+            margin-bottom: 15px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+        .group-detail-header .g-title {
+            font-size: 22px;
+            font-weight: bold;
+            color: #fcc01a;
+        }
+        .group-detail-header .g-sub {
+            font-size: 13px;
+            color: #ddd;
+            margin-top: 4px;
+        }
+        .course-pills {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 15px;
+        }
+        .course-pill {
+            background: #3b1e5a;
+            border: 2px solid #fcc01a;
+            color: #fcc01a;
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 14px;
+            font-weight: bold;
+        }
+        .course-pill .pill-total {
+            color: white;
+            font-size: 12px;
+            margin-right: 5px;
+        }
+        /* ===================================== */
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -758,7 +846,6 @@
                     </div>
                     <div id="records-counter" style="text-align: center; color: #fcc01a; font-weight: bold; margin-bottom: 15px; font-size: 16px; background: rgba(255,255,255,0.1); padding: 7px; border-radius: 5px;"></div>
                     
-                    <!-- إضافات التقويم الجديد -->
                     <div class="calendar-controls">
                         <button class="cal-nav-btn" onclick="navigateCalendar(-1)" title="الشهر السابق">›</button>
                         <div class="cal-selectors">
@@ -781,7 +868,6 @@
                         <div class="calendar-day-header">السبت</div>
                     </div>
                     <div id="calendar-days-container" class="calendar-grid"></div>
-                    <!-- نهاية الإضافات -->
                 </div>
                 <div id="periods-list" style="display: none;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
@@ -808,6 +894,7 @@
                 </div>
             </div>
 
+            <!-- ============ إدارة المجموعات (العرض الجديد) ============ -->
             <div id="view-groups" class="view-section">
                 <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
                     <h3 style="color: white; margin: 0;">إدارة المجموعات</h3>
@@ -817,7 +904,27 @@
                         <button id="export-excel-btn" class="add-btn" style="width: auto; background-color: #28a745; margin: 0; display: none;" onclick="exportGroupToExcel()">تصدير إكسيل 📊</button>
                     </div>
                 </div>
-                <div class="manual-add-box">
+
+                <!-- بطاقات المجموعات -->
+                <div id="groups-overview-view">
+                    <div id="groups-overview-grid" class="group-overview-grid"></div>
+                </div>
+
+                <!-- تفاصيل مجموعة -->
+                <div id="group-detail-view" style="display: none;">
+                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToGroupsOverview()">← رجوع للمجموعات</button>
+                    <div class="group-detail-header">
+                        <div>
+                            <div class="g-title" id="group-detail-title">المجموعة</div>
+                            <div class="g-sub" id="group-detail-sub"></div>
+                        </div>
+                    </div>
+                    <div class="course-pills" id="group-course-pills"></div>
+                    <div id="group-students-container"></div>
+                </div>
+
+                <!-- إضافة طالب يدوياً -->
+                <div class="manual-add-box" style="margin-top: 20px;">
                     <h4 style="margin-top: 0; color: #fcc01a;">إدراج طالب يدوياً</h4>
                     <div style="display: flex; gap: 10px; flex-wrap: wrap;">
                         <input type="text" id="manual-name" placeholder="اسم الطالب" style="flex: 1; min-width: 150px;">
@@ -826,20 +933,10 @@
                         <button class="add-btn" style="flex: 1; min-width: 100px; margin:0;" onclick="manualAddStudent()">حفظ الطالب</button>
                     </div>
                 </div>
-                <label>استعراض المجموعة:</label>
-                <select id="group-select" onchange="renderGroupStudents(this.value)">
-                    <option value="" disabled selected>اختر المجموعة</option>
-                </select>
-                <div id="group-total-count" style="color: #fcc01a; font-weight: bold; margin-bottom: 15px; display: none;"></div>
-                <div style="overflow-x: auto;">
-                    <table id="groupDataTable" style="display: none; min-width: 600px;">
-                        <thead>
-                            <tr><th>الاسم</th><th>الهاتف</th><th>المجموعة</th><th>Classic</th><th>PLC</th><th>Drive</th><th>إجراء</th></tr>
-                        </thead>
-                        <tbody></tbody>
-                    </table>
-                </div>
+
+                <input type="hidden" id="group-select" value="">
             </div>
+            <!-- ============================================== -->
 
             <div id="view-blocked" class="view-section">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; margin-top: 0;">
@@ -3170,6 +3267,9 @@
         document.getElementById('view-' + viewId).classList.add('active');
         const activeBtn = document.getElementById('btn-nav-' + viewId);
         if (activeBtn) activeBtn.classList.add('active');
+        if (viewId === 'groups') {
+            backToGroupsOverview();
+        }
     }
 
     let allStudents = []; let blockedPhonesList = []; let allProgress = {};
@@ -3202,6 +3302,9 @@
                 Object.keys(data).forEach(k => { if(LMS_COURSES[k]) Object.assign(LMS_COURSES[k], data[k]); });
             }
             renderSystemSettingsUI();
+            if (document.getElementById('view-groups').classList.contains('active') && currentGroupDetail) {
+                renderGroupStudents(currentGroupDetail);
+            }
         });
         database.ref('settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
         database.ref('settings/schedule').on('value', snap => { if (snap.exists()) globalSchedule = snap.val(); else database.ref('settings/schedule').set(defaultSchedule); });
@@ -3230,7 +3333,8 @@
                     if (studentsInPeriod.length === 0) backToPeriods(); else showPeriodDetails(currentSelectedDate, currentSelectedPeriod);
                 } else renderPeriodsList(currentSelectedDate);
             } else renderDatesList();
-            updateGroupsDropdown();
+            renderGroupsOverview();
+            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             updateAdminSubmissionsBell();
             if(isShowingHistory) renderUnblockedList();
         });
@@ -3257,13 +3361,12 @@
                 }
             });
             if(!hasExpired) renderBlockedList();
-            let groupSel = document.getElementById('group-select');
-            if (groupSel && groupSel.value) renderGroupStudents(groupSel.value);
+            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
         });
 
         database.ref('student_progress').on('value', (snapshot) => {
             allProgress = snapshot.exists() ? snapshot.val() : {};
-            let select = document.getElementById('group-select'); if (select && select.value) renderGroupStudents(select.value);
+            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             updateAdminSubmissionsBell();
             if (currentSelectedStudent) selectStudent(currentSelectedStudent);
             if(isShowingHistory) renderUnblockedList();
@@ -3485,13 +3588,13 @@
         }
     }
     window.resetSpecificGroupTenure = async function() {
-        let groupSelect = document.getElementById('group-select').value;
-        if (!groupSelect) return;
-        if(confirm(`تصفير صلاحية المجموعة ${groupSelect}؟`)) {
+        if (!currentGroupDetail) return;
+        if(confirm(`تصفير صلاحية المجموعة ${currentGroupDetail}؟`)) {
             try {
-                await database.ref('settings/group_resets/' + extractPureNumber(groupSelect)).set(getLocalDateString());
+                await database.ref('settings/group_resets/' + extractPureNumber(currentGroupDetail)).set(getLocalDateString());
                 alert("تم.");
-                if(currentSelectedStudent) selectStudent(currentSelectedStudent);
+                renderGroupsOverview();
+                if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             } catch(e) { alert("خطأ: " + e.message); }
         }
     }
@@ -3563,7 +3666,7 @@
     };
 
     window.deleteEntireGroup = async function() {
-        let groupSelect = document.getElementById('group-select').value;
+        let groupSelect = currentGroupDetail;
         if (!groupSelect) return;
         if(confirm(`حذف المجموعة (${groupSelect}) نهائياً؟`)) {
             let studentsInGroup = allStudents.filter(s => isStrictlyNumber(s.group) && extractPureNumber(s.group) === groupSelect);
@@ -3573,22 +3676,10 @@
                 await database.ref('students').update(updates);
                 await database.ref('student_progress').update(progressUpdates);
                 alert('تم.');
-                document.getElementById('group-select').value = '';
-                document.getElementById('groupDataTable').style.display = 'none';
-                document.getElementById('export-excel-btn').style.display = 'none';
-                document.getElementById('delete-group-btn').style.display = 'none';
-                document.getElementById('reset-group-btn').style.display = 'none';
-                document.getElementById('group-total-count').style.display = 'none';
+                backToGroupsOverview();
             } catch(err) { alert('خطأ: ' + err.message); }
         }
     };
-
-    function updateGroupsDropdown() {
-        let uniqueGroups = new Set(); allStudents.forEach(s => { if (isStrictlyNumber(s.group) && !s.canceled) uniqueGroups.add(extractPureNumber(s.group)); });
-        let select = document.getElementById('group-select'); let currentVal = select.value; select.innerHTML = '<option value="" disabled selected>اختر المجموعة</option>';
-        Array.from(uniqueGroups).sort((a, b) => parseInt(a) - parseInt(b)).forEach(num => { let o = document.createElement('option'); o.value = num; o.text = num; select.appendChild(o); });
-        if (currentVal && uniqueGroups.has(currentVal)) { select.value = currentVal; renderGroupStudents(currentVal); }
-    }
 
     function calculateProgressDynamic(courseKey, completedTasksSet, studentProgressData) {
         let limits = LMS_COURSES[courseKey] || { tasks: 0, exam: false };
@@ -3642,51 +3733,165 @@
         }
     };
 
-    function renderGroupStudents(selectedGroupNumber) {
-        let studentsInGroup = allStudents.filter(s => isStrictlyNumber(s.group) && extractPureNumber(s.group) === selectedGroupNumber && !s.canceled);
-        let phoneMap = new Map(); studentsInGroup.sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
+    /* ===== إدارة المجموعات - العرض الجديد ===== */
+
+    let currentGroupDetail = null;
+
+    function getGroupStudents(groupNum) {
+        let studentsInGroup = allStudents.filter(s => isStrictlyNumber(s.group) && extractPureNumber(s.group) === groupNum && !s.canceled);
+        let phoneMap = new Map();
+        studentsInGroup.sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
         studentsInGroup.forEach(s => { phoneMap.set(extractPureNumber(s.phone), s); });
-        let uniqueStudents = Array.from(phoneMap.values());
-        let excelBtn = document.getElementById('export-excel-btn');
-        let deleteGrpBtn = document.getElementById('delete-group-btn');
-        let resetGrpBtn = document.getElementById('reset-group-btn');
-        if (uniqueStudents.length > 0) {
-            excelBtn.style.display = 'block';
-            deleteGrpBtn.style.display = 'block';
-            resetGrpBtn.style.display = 'block';
-            let totalCountEl = document.getElementById('group-total-count');
-            totalCountEl.style.display = 'block';
-            let tenureStr = getGroupTenureText(selectedGroupNumber);
-            totalCountEl.innerHTML = `إجمالي عدد الطلاب: ${uniqueStudents.length}<div style="font-size: 14px; color: #bcaaa4; font-weight: normal; margin-top: 3px;">(عمر المجموعة: ${tenureStr})</div>`;
-        } else {
-            excelBtn.style.display = 'none';
-            deleteGrpBtn.style.display = 'none';
-            resetGrpBtn.style.display = 'none';
-            document.getElementById('group-total-count').style.display = 'none';
+        return Array.from(phoneMap.values());
+    }
+
+    function renderGroupsOverview() {
+        const container = document.getElementById('groups-overview-grid');
+        if (!container) return;
+        container.innerHTML = '';
+
+        let groupsSet = new Set();
+        allStudents.forEach(s => {
+            if (isStrictlyNumber(s.group) && !s.canceled) groupsSet.add(extractPureNumber(s.group));
+        });
+
+        if (groupsSet.size === 0) {
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1; background: white; color: #888; border-radius: 10px; padding: 30px;">لا توجد مجموعات مسجلة بعد</div>';
+            return;
         }
-        let tbody = document.querySelector('#groupDataTable tbody'); tbody.innerHTML = '';
-        uniqueStudents.forEach(st => {
-            let pureGrp = extractPureNumber(st.group); let purePhone = extractPureNumber(st.phone); let stProg = allProgress[purePhone] || {};
+
+        Array.from(groupsSet).sort((a,b) => parseInt(a) - parseInt(b)).forEach(gNum => {
+            let students = getGroupStudents(gNum);
+            let totalStudents = students.length;
+            let blockedCount = 0;
+            students.forEach(st => {
+                if (blockedPhonesList.some(b => extractPureNumber(b.phone) === extractPureNumber(st.phone))) blockedCount++;
+            });
+            let tenureStr = getGroupTenureText(gNum);
+            container.innerHTML += `
+                <div class="group-overview-card" onclick="openGroupDetail('${gNum}')">
+                    <div class="g-num">${gNum}</div>
+                    <div class="g-tenure">عمر المجموعة: <strong>${tenureStr}</strong></div>
+                    <div class="g-stats">
+                        <div class="g-stat-item">
+                            <span class="g-stat-value total">${totalStudents}</span>
+                            <span class="g-stat-label">طالب</span>
+                        </div>
+                        ${blockedCount > 0 ? `<div class="g-stat-item"><span class="g-stat-value" style="color:#ff4d4d;">${blockedCount}</span><span class="g-stat-label">مقيد</span></div>` : ''}
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    window.backToGroupsOverview = function() {
+        currentGroupDetail = null;
+        document.getElementById('groups-overview-view').style.display = 'block';
+        document.getElementById('group-detail-view').style.display = 'none';
+        renderGroupsOverview();
+    };
+
+    window.openGroupDetail = function(gNum) {
+        currentGroupDetail = gNum;
+        document.getElementById('groups-overview-view').style.display = 'none';
+        document.getElementById('group-detail-view').style.display = 'block';
+        renderGroupStudents(gNum);
+    };
+
+    function renderGroupStudents(groupNum) {
+        currentGroupDetail = groupNum;
+        let students = getGroupStudents(groupNum);
+        let tenureStr = getGroupTenureText(groupNum);
+
+        document.getElementById('group-detail-title').innerText = `المجموعة ${groupNum}`;
+        document.getElementById('group-detail-sub').innerText = `عدد الطلاب: ${students.length} — عمر المجموعة: ${tenureStr}`;
+
+        // عرض الكورسات المحددة فقط
+        let pillsContainer = document.getElementById('group-course-pills');
+        pillsContainer.innerHTML = '';
+        Object.keys(LMS_COURSES).forEach(cKey => {
+            let course = LMS_COURSES[cKey];
+            pillsContainer.innerHTML += `<div class="course-pill">${course.title} <span class="pill-total">(${course.tasks} تاسك${course.exam ? ' + امتحان' : ''})</span></div>`;
+        });
+
+        let container = document.getElementById('group-students-container');
+        if (students.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="background: white; color: #888; border-radius: 10px; padding: 30px;">لا يوجد طلاب في هذه المجموعة</div>';
+            return;
+        }
+
+        let html = `
+        <div class="excel-table-container">
+            <table class="excel-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>الاسم</th>
+                        <th>الرقم</th>
+                        <th>الكلية</th>
+                        ${Object.keys(LMS_COURSES).map(cKey => `<th>${LMS_COURSES[cKey].title}</th>`).join('')}
+                        <th>إجراء</th>
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        students.forEach((st, index) => {
+            let purePhone = extractPureNumber(st.phone);
+            let stProg = allProgress[purePhone] || {};
             let studentRecords = allStudents.filter(s => extractPureNumber(s.phone) === purePhone && !s.canceled && s.attended && s.tasks);
             let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-            studentRecords.forEach(r => { let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive'); r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); }); });
-            let cProg = calculateProgressDynamic('classic_control', cTasks, stProg); let pProg = calculateProgressDynamic('plc', cTasks, stProg); let dProg = calculateProgressDynamic('motor_drive', cTasks, stProg);
-            let cText = cProg.percentage === 100 && cProg.totalItems > 0 ? '✅' : `${cProg.completed}/${cProg.totalItems}`; let pText = pProg.percentage === 100 && pProg.totalItems > 0 ? '✅' : `${pProg.completed}/${pProg.totalItems}`; let dText = dProg.percentage === 100 && dProg.totalItems > 0 ? '✅' : `${dProg.completed}/${dProg.totalItems}`;
+            studentRecords.forEach(r => {
+                let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
+                r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
+            });
+
             let blockedRec = blockedPhonesList.find(b => extractPureNumber(b.phone) === purePhone);
             let banIcon = blockedRec ? ` <span style="cursor:help;" title="مُقيد: ${blockedRec.reason}">⛔</span>` : '';
-            tbody.innerHTML += `<tr><td><span onclick="selectStudent('${st.phone}')" style="cursor: pointer; color: black;">${st.name || ''}</span>${banIcon}</td><td onclick="openWhatsApp('${st.phone}')" style="cursor: pointer; color: inherit; text-decoration: none; font-family: Tahoma;" title="مراسلة عبر واتساب">${st.phone || ''}</td><td style="font-weight: bold; color: #3b1e5a;">${pureGrp}</td><td style="font-size: 14px; font-weight: bold; color:#cc0000;">${cText}</td><td style="font-size: 14px; font-weight: bold; color:#cc0000;">${pText}</td><td style="font-size: 14px; font-weight: bold; color:#cc0000;">${dText}</td><td><button class="delete-btn" onclick="deleteStudentCompletely('${st.phone}')">حذف</button></td></tr>`;
+
+            html += `
+                <tr>
+                    <td style="background:#f0f0f0; font-weight:bold; color:#3b1e5a;">${index + 1}</td>
+                    <td style="font-weight:bold; color:#3b1e5a;"><span onclick="selectStudent('${st.phone}')" style="cursor:pointer; color:inherit;">${st.name || ''}</span>${banIcon}</td>
+                    <td onclick="openWhatsApp('${st.phone}')" style="cursor:pointer; font-family:Tahoma;">${st.phone || ''}</td>
+                    <td>${st.college || '-'}</td>
+            `;
+
+            Object.keys(LMS_COURSES).forEach(cKey => {
+                let prog = calculateProgressDynamic(cKey, cTasks, stProg);
+                let isCompleted = prog.percentage === 100 && prog.totalItems > 0;
+                let text = isCompleted ? '✅' : `${prog.completed}/${prog.totalItems}`;
+                let color = isCompleted ? '#28a745' : (prog.completed > 0 ? '#fcc01a' : '#cc0000');
+                html += `<td style="font-weight:bold; color:${color};">${text}</td>`;
+            });
+
+            html += `
+                    <td><button class="delete-btn" style="margin:0; padding:4px 10px; font-size:12px;" onclick="deleteStudentCompletely('${st.phone}')">حذف</button></td>
+                </tr>
+            `;
         });
-        document.getElementById('groupDataTable').style.display = 'table';
+
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
     }
 
     function exportGroupToExcel() {
-        let groupSelect = document.getElementById('group-select').value; if (!groupSelect) return;
-        let cloneTable = document.getElementById("groupDataTable").cloneNode(true); cloneTable.setAttribute('border', '1'); cloneTable.style.borderCollapse = 'collapse'; cloneTable.style.textAlign = 'center'; cloneTable.style.direction = 'rtl';
-        cloneTable.querySelectorAll('th').forEach(th => { th.style.backgroundColor = '#fcc01a'; th.style.color = '#3b1e5a'; th.style.padding = '10px'; }); cloneTable.querySelectorAll('td').forEach(td => { td.style.padding = '8px'; });
-        cloneTable.querySelectorAll('tr').forEach(tr => tr.removeChild(tr.lastElementChild));
-        let blob = new Blob(['\ufeff', `<html dir="rtl" lang="ar"><head><meta charset="UTF-8"></head><body><h2 style="text-align: center; color: #3b1e5a; font-family: Tahoma;">بيانات مجموعة: ${groupSelect} - test</h2>${cloneTable.outerHTML}</body></html>`], { type: 'application/vnd.ms-excel' });
-        let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.href = url; a.download = `مجموعة_${groupSelect}_test.xls`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
+        if (!currentGroupDetail) return;
+        let cloneTable = document.querySelector('#group-students-container table');
+        if (!cloneTable) return;
+        cloneTable = cloneTable.cloneNode(true);
+        cloneTable.setAttribute('border', '1');
+        cloneTable.style.borderCollapse = 'collapse';
+        cloneTable.style.textAlign = 'center';
+        cloneTable.style.direction = 'rtl';
+        cloneTable.querySelectorAll('th').forEach(th => { th.style.backgroundColor = '#fcc01a'; th.style.color = '#3b1e5a'; th.style.padding = '10px'; });
+        cloneTable.querySelectorAll('td').forEach(td => { td.style.padding = '8px'; });
+        cloneTable.querySelectorAll('tr').forEach(tr => { if (tr.lastElementChild) tr.removeChild(tr.lastElementChild); });
+        let blob = new Blob(['\ufeff', `<html dir="rtl" lang="ar"><head><meta charset="UTF-8"></head><body><h2 style="text-align: center; color: #3b1e5a; font-family: Tahoma;">بيانات مجموعة: ${currentGroupDetail} - test</h2>${cloneTable.outerHTML}</body></html>`], { type: 'application/vnd.ms-excel' });
+        let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.href = url; a.download = `مجموعة_${currentGroupDetail}_test.xls`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
     }
+
+    /* ======================================== */
 
     function toggleAccordion(btnId, panelId) {
         let btn = document.getElementById(btnId); let panel = document.getElementById(panelId);
@@ -4218,6 +4423,11 @@
     function backToPeriods() { currentSelectedPeriod = null; renderPeriodsList(currentSelectedDate); }
     function deleteAllInPeriod() { if (confirm(`حذف؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate && s.time === currentSelectedPeriod).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToPeriods); } }
     function deleteAllInDay() { if (confirm(`حذف اليوم بالكامل؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToDates); } }
+
+    /* ============ نظام إعدادات النظام (stubs) ============ */
+    // دوال مساعدة موجودة مسبقاً في الكود الأصلي (renderSystemSettingsUI, saveSystemSettings, toggleBlockLateBooking, renderCoursesSettings, ...)
+    // تم الاحتفاظ بها كما هي، لكنها لم تُعرَّف بالكامل هنا لتجنب التكرار.
+    // إذا كانت هناك دوال مفقودة في بيئتك، تأكد من إضافتها من الكود الأصلي.
 </script>
 </body>
 </html>
