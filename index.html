@@ -311,7 +311,6 @@
             background: #fff; color: #3b1e5a; font-size: 15px; font-weight: bold;
         }
 
-        /* --- تحسينات التقويم الجديد --- */
         .calendar-controls {
             display: flex;
             justify-content: space-between;
@@ -399,96 +398,6 @@
             0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
             50%     { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
         }
-        /* ----------------------------------- */
-
-        /* ===== إدارة المجموعات (View جديد) ===== */
-        .group-overview-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
-            gap: 15px;
-            margin-bottom: 20px;
-        }
-        .group-overview-card {
-            background: linear-gradient(135deg, #4c2673, #2a1540);
-            border: 2px solid #fcc01a;
-            border-radius: 12px;
-            padding: 20px;
-            cursor: pointer;
-            transition: 0.3s;
-            position: relative;
-            text-align: center;
-        }
-        .group-overview-card:hover {
-            transform: scale(1.03);
-            box-shadow: 0 5px 20px rgba(252,192,26,0.3);
-        }
-        .group-overview-card .g-num {
-            font-size: 32px;
-            font-weight: bold;
-            color: #fcc01a;
-        }
-        .group-overview-card .g-tenure {
-            font-size: 13px;
-            color: #ddd;
-            margin-top: 8px;
-            line-height: 1.6;
-        }
-        .group-overview-card .g-tenure strong { color: #fcc01a; }
-        .group-overview-card .g-stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(252,192,26,0.3);
-        }
-        .group-overview-card .g-stat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-        .group-overview-card .g-stat-value { font-size: 22px; font-weight: bold; color: #28a745; }
-        .group-overview-card .g-stat-value.total { color: #fcc01a; }
-        .group-overview-card .g-stat-label { font-size: 12px; color: #ccc; }
-
-        .group-detail-header {
-            background: rgba(255,255,255,0.08);
-            border: 2px solid #fcc01a;
-            border-radius: 10px;
-            padding: 15px;
-            margin-bottom: 15px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            flex-wrap: wrap;
-            gap: 10px;
-        }
-        .group-detail-header .g-title {
-            font-size: 22px;
-            font-weight: bold;
-            color: #fcc01a;
-        }
-        .group-detail-header .g-sub {
-            font-size: 13px;
-            color: #ddd;
-            margin-top: 4px;
-        }
-        .course-pills {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 8px;
-            margin-bottom: 15px;
-        }
-        .course-pill {
-            background: #3b1e5a;
-            border: 2px solid #fcc01a;
-            color: #fcc01a;
-            padding: 8px 16px;
-            border-radius: 20px;
-            font-size: 14px;
-            font-weight: bold;
-        }
-        .course-pill .pill-total {
-            color: white;
-            font-size: 12px;
-            margin-right: 5px;
-        }
-        /* ===================================== */
     </style>
 
     <script src="https://www.gstatic.com/firebasejs/10.7.1/firebase-app-compat.js"></script>
@@ -614,7 +523,7 @@
         <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">تعديل فترة الدورة</h3>
         <div class="dip-money-info" id="dip-money-info"></div>
         <label>بداية الدورة:</label>
-        <input type="date" id="edit-dip-start" onchange="autoCalcEditDipEnd()">
+        <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
         <label>نهاية الدورة:</label>
         <input type="date" id="edit-dip-end">
         <button class="submit-btn" style="margin-top:10px;" onclick="saveDipDates()">حفظ التعديل</button>
@@ -847,12 +756,12 @@
                     <div id="records-counter" style="text-align: center; color: #fcc01a; font-weight: bold; margin-bottom: 15px; font-size: 16px; background: rgba(255,255,255,0.1); padding: 7px; border-radius: 5px;"></div>
                     
                     <div class="calendar-controls">
-                        <button class="cal-nav-btn" onclick="navigateCalendar(-1)" title="الشهر السابق">›</button>
+                        <button class="cal-nav-btn" onclick="navigateCalendar(-1)" title="الشهر السابق">‹</button>
                         <div class="cal-selectors">
                             <select id="cal-month-select" onchange="renderCalendar()"></select>
                             <select id="cal-year-select" onchange="renderCalendar()"></select>
                         </div>
-                        <button class="cal-nav-btn" onclick="navigateCalendar(1)" title="الشهر التالي">‹</button>
+                        <button class="cal-nav-btn" onclick="navigateCalendar(1)" title="الشهر التالي">›</button>
                     </div>
                     <div class="calendar-actions">
                         <button class="cal-today-btn" onclick="goToToday()">📍 اليوم</button>
@@ -894,49 +803,30 @@
                 </div>
             </div>
 
-            <!-- ============ إدارة المجموعات (العرض الجديد) ============ -->
             <div id="view-groups" class="view-section">
-                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
-                    <h3 style="color: white; margin: 0;">إدارة المجموعات</h3>
-                    <div style="display: flex; gap: 10px; align-items: center;">
-                        <button id="reset-group-btn" style="background:none; border:none; cursor:pointer; font-size:20px; padding:0; display:none; filter: grayscale(100%) brightness(200%);" title="تصفير صلاحية المجموعة" onclick="resetSpecificGroupTenure()">🕒</button>
-                        <button id="delete-group-btn" class="delete-btn" style="display: none; padding: 10px; margin: 0;" onclick="deleteEntireGroup()">حذف المجموعة 🗑️</button>
-                        <button id="export-excel-btn" class="add-btn" style="width: auto; background-color: #28a745; margin: 0; display: none;" onclick="exportGroupToExcel()">تصدير إكسيل 📊</button>
-                    </div>
+                <div id="lab-groups-view">
+                    <h3 style="color: white; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-top: 0;">إدارة المجموعات</h3>
+                    <div id="lab-groups-grid" class="diploma-grid"></div>
                 </div>
 
-                <!-- بطاقات المجموعات -->
-                <div id="groups-overview-view">
-                    <div id="groups-overview-grid" class="group-overview-grid"></div>
+                <div id="lab-group-detail-view" style="display: none;">
+                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToLabGroups()">← رجوع لأسماء الدورات</button>
+                    <h3 id="lab-group-title" style="text-align: center; color: #fcc01a; margin-top: 0;"></h3>
+                    <input type="text" id="lab-group-search-input" class="search-diploma-input" placeholder="🔍 بحث باسم الدورة أو رقمها..." oninput="filterLabGroups(this.value)" autocomplete="off">
+                    <div id="lab-groups-copies-grid" class="diploma-grid"></div>
                 </div>
 
-                <!-- تفاصيل مجموعة -->
-                <div id="group-detail-view" style="display: none;">
-                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToGroupsOverview()">← رجوع للمجموعات</button>
-                    <div class="group-detail-header">
-                        <div>
-                            <div class="g-title" id="group-detail-title">المجموعة</div>
-                            <div class="g-sub" id="group-detail-sub"></div>
-                        </div>
+                <div id="lab-group-copy-detail-view" style="display: none;">
+                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToLabGroupFromDetail()">← رجوع للدورات</button>
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
+                        <h2 id="lab-group-copy-title" style="color: white; margin: 0;"></h2>
+                        <button id="export-excel-btn" class="add-btn" style="width: auto; background-color: #28a745; margin: 0; display: none;" onclick="exportLabGroupToExcel()">تصدير إكسيل 📊</button>
                     </div>
-                    <div class="course-pills" id="group-course-pills"></div>
-                    <div id="group-students-container"></div>
-                </div>
-
-                <!-- إضافة طالب يدوياً -->
-                <div class="manual-add-box" style="margin-top: 20px;">
-                    <h4 style="margin-top: 0; color: #fcc01a;">إدراج طالب يدوياً</h4>
-                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
-                        <input type="text" id="manual-name" placeholder="اسم الطالب" style="flex: 1; min-width: 150px;">
-                        <input type="tel" id="manual-phone" placeholder="رقم الهاتف" style="flex: 1; min-width: 120px;">
-                        <input type="text" id="manual-group" placeholder="المجموعة" style="flex: 1; min-width: 80px;">
-                        <button class="add-btn" style="flex: 1; min-width: 100px; margin:0;" onclick="manualAddStudent()">حفظ الطالب</button>
-                    </div>
+                    <div id="lab-group-copy-students-container"></div>
                 </div>
 
                 <input type="hidden" id="group-select" value="">
             </div>
-            <!-- ============================================== -->
 
             <div id="view-blocked" class="view-section">
                 <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; margin-top: 0;">
@@ -1122,8 +1012,6 @@
         return `${d} ${t}`;
     }
     const today = getLocalDateString();
-    let dateInputEl = document.querySelector('.date-input');
-    if (dateInputEl) dateInputEl.setAttribute('min', today);
 
     function diffDaysSafely(date1Str, date2Str) {
         let d1 = new Date(date1Str + "T00:00:00").getTime();
@@ -1222,20 +1110,6 @@
         else if (r.includes('مجموعة') || r.includes('صلاحية')) updates.tenure_reset_date = todayStr;
         else { updates.absence_reset_date = todayStr; updates.inactivity_reset_date = todayStr; }
         return updates;
-    }
-
-    function getGroupTenureText(groupNum) {
-        let groupRecords = allStudents.filter(s => extractPureNumber(s.group) === String(groupNum) && s.date && s.date !== "بدون موعد" && !s.canceled);
-        if (groupRecords.length === 0) return "لا توجد سجلات للمجموعة";
-        groupRecords.sort((a,b) => new Date(a.date+"T00:00:00") - new Date(b.date+"T00:00:00"));
-        let baseDate = groupRecords[0].date;
-        if (globalGroupResetDate && globalGroupResetDate > baseDate) baseDate = globalGroupResetDate;
-        if (groupResets[groupNum] && groupResets[groupNum] > baseDate) baseDate = groupResets[groupNum];
-        let todayStr = getLocalDateString();
-        let diffDays = diffDaysSafely(baseDate, todayStr);
-        if (diffDays === 0) return "اليوم أول يوم للمجموعة";
-        else if (diffDays < 30) return diffDays + " أيام";
-        else { let m = Math.floor(diffDays / 30); let d = diffDays % 30; return m + " شهور و " + d + " أيام"; }
     }
 
     async function applyDynamicBan(phone, name, baseReason, ruleKey, currentBans) {
@@ -1440,7 +1314,6 @@
         document.getElementById('period-details').style.display = 'none';
         renderCalendar();
     }
-    /* ======================================================= */
 
     function isPeriodPassed(dateStr, periodName) {
         if (!dateStr || !periodName) return false;
@@ -1477,12 +1350,13 @@
         let cutoffTime = new Date(targetStartObj.getTime() - (lateBookingOffsetHours * 60 * 60 * 1000));
         return new Date() >= cutoffTime;
     }
+
     /* ============ Diploma Dates ============ */
-    function calcEndDate(startVal) {
+    function calcEndDate(startVal, months = 2) {
         if (!startVal) return '';
         const parts = startVal.split('-');
         const start = new Date(parts[0], parts[1]-1, parts[2]);
-        const targetMonth = start.getMonth() + 2;
+        const targetMonth = start.getMonth() + months;
         const targetYear = start.getFullYear() + Math.floor(targetMonth / 12);
         const finalMonth = targetMonth % 12;
         const daysInMonth = new Date(targetYear, finalMonth + 1, 0).getDate();
@@ -1501,9 +1375,21 @@
     };
 
     let editingDipId = null;
+    let editingLabDipId = null;
+
+    window.handleEditStartChange = function() {
+        const startVal = document.getElementById('edit-dip-start').value;
+        if (!startVal) return;
+        if (editingLabDipId) {
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 3);
+        } else {
+            document.getElementById('edit-dip-end').value = calcEndDate(startVal, 2);
+        }
+    };
 
     window.openDipEditDates = async function(id) {
         editingDipId = id;
+        editingLabDipId = null;
         const dip = allDiplomas[id];
         if (!dip) return;
         document.getElementById('edit-dip-start').value = dip.start_date || '';
@@ -1522,26 +1408,43 @@
             const remaining = totalExpected - totalPaid;
 
             moneyInfoEl.innerHTML = `
-                <div class="dip-money-row">
-                    <span class="dip-money-label">👥 عدد الطلاب:</span>
-                    <span class="dip-money-value">${count}</span>
-                </div>
-                <div class="dip-money-row">
-                    <span class="dip-money-label">💰 سعر الفرد:</span>
-                    <span class="dip-money-value">${(dip.price || 0).toLocaleString()} ج.م</span>
-                </div>
-                <div class="dip-money-row">
-                    <span class="dip-money-label">📊 المطلوب الكلي:</span>
-                    <span class="dip-money-value">${totalExpected.toLocaleString()} ج.م</span>
-                </div>
-                <div class="dip-money-row">
-                    <span class="dip-money-label">✅ المحصّل:</span>
-                    <span class="dip-money-value">${totalPaid.toLocaleString()} ج.م</span>
-                </div>
-                <div class="dip-money-row">
-                    <span class="dip-money-label">⏳ المتبقي:</span>
-                    <span class="dip-money-value pending">${remaining.toLocaleString()} ج.م</span>
-                </div>
+                <div class="dip-money-row"><span class="dip-money-label">👥 عدد الطلاب:</span><span class="dip-money-value">${count}</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">💰 سعر الفرد:</span><span class="dip-money-value">${(dip.price || 0).toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">📊 المطلوب الكلي:</span><span class="dip-money-value">${totalExpected.toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">✅ المحصّل:</span><span class="dip-money-value">${totalPaid.toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">⏳ المتبقي:</span><span class="dip-money-value pending">${remaining.toLocaleString()} ج.م</span></div>
+            `;
+        } catch(e) {
+            moneyInfoEl.innerHTML = '<div style="color:#cc0000; text-align:center; font-size:14px;">خطأ في تحميل البيانات</div>';
+        }
+    };
+
+    window.openLabDipEditDates = async function(id) {
+        editingLabDipId = id;
+        editingDipId = null;
+        const dip = allDiplomas[id];
+        if (!dip) return;
+        document.getElementById('edit-dip-start').value = dip.start_date || '';
+        document.getElementById('edit-dip-end').value = dip.end_date || '';
+
+        const moneyInfoEl = document.getElementById('dip-money-info');
+        moneyInfoEl.innerHTML = '<div style="text-align:center; color:#666; font-size:14px;">جاري تحميل البيانات...</div>';
+        document.getElementById('dip-edit-dates-modal').style.display = 'flex';
+
+        try {
+            const snap = await database.ref('diploma_students/' + id).get();
+            const students = snap.exists() ? snap.val() : {};
+            const count = Object.keys(students).length;
+            const totalPaid = Object.values(students).reduce((sum, st) => sum + (parseInt(st.paid) || 0), 0);
+            const totalExpected = count * (dip.price || 0);
+            const remaining = totalExpected - totalPaid;
+
+            moneyInfoEl.innerHTML = `
+                <div class="dip-money-row"><span class="dip-money-label">👥 عدد الطلاب:</span><span class="dip-money-value">${count}</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">💰 سعر الفرد:</span><span class="dip-money-value">${(dip.price || 0).toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">📊 المطلوب الكلي:</span><span class="dip-money-value">${totalExpected.toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">✅ المحصّل:</span><span class="dip-money-value">${totalPaid.toLocaleString()} ج.م</span></div>
+                <div class="dip-money-row"><span class="dip-money-label">⏳ المتبقي:</span><span class="dip-money-value pending">${remaining.toLocaleString()} ج.م</span></div>
             `;
         } catch(e) {
             moneyInfoEl.innerHTML = '<div style="color:#cc0000; text-align:center; font-size:14px;">خطأ في تحميل البيانات</div>';
@@ -1550,13 +1453,27 @@
 
     window.closeDipEditDatesModal = function() {
         editingDipId = null;
+        editingLabDipId = null;
         document.getElementById('dip-edit-dates-modal').style.display = 'none';
     };
 
     window.saveDipDates = async function() {
-        if (!editingDipId) return;
         const startVal = document.getElementById('edit-dip-start').value;
         const endVal = document.getElementById('edit-dip-end').value;
+        if (editingLabDipId) {
+            try {
+                await database.ref('diplomas/' + editingLabDipId).update({
+                    start_date: startVal || null,
+                    end_date: endVal || null
+                });
+                alert('تم حفظ فترة الدورة ✅');
+                editingLabDipId = null;
+                document.getElementById('dip-edit-dates-modal').style.display = 'none';
+                if (currentLabGroupName) renderLabGroupCopies();
+            } catch(e) { alert('خطأ: ' + e.message); }
+            return;
+        }
+        if (!editingDipId) return;
         try {
             await database.ref('diplomas/' + editingDipId).update({
                 start_date: startVal || null,
@@ -2527,6 +2444,278 @@
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
+    /* ============ إدارة المجموعات (نسخة من إدارة الدورات) ============ */
+
+    let currentLabGroupName = null;
+    let currentLabDipId = null;
+
+    async function renderLabGroups() {
+        const container = document.getElementById('lab-groups-grid');
+        if (!container) return;
+        container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">جاري التحميل...</div>';
+
+        try {
+            const [dipSnap, studentsSnap] = await Promise.all([
+                database.ref('diplomas').get(),
+                database.ref('diploma_students').get()
+            ]);
+            allDiplomas = dipSnap.exists() ? dipSnap.val() : {};
+            allDiplomaStudents = studentsSnap.exists() ? studentsSnap.val() : {};
+        } catch(e) {
+            container.innerHTML = `<div class="empty-state" style="color:red; grid-column: 1/-1;">خطأ: ${e.message}</div>`;
+            return;
+        }
+
+        const todayStr = getLocalDateString();
+        const groups = {};
+
+        Object.keys(allDiplomas).forEach(id => {
+            const dip = allDiplomas[id];
+            const name = (dip.name || 'بدون اسم').trim();
+            if (!groups[name]) groups[name] = { count: 0, activeCount: 0, totalStudents: 0 };
+            groups[name].count++;
+            const isExpired = dip.end_date && dip.end_date < todayStr;
+            if (!isExpired) groups[name].activeCount++;
+            const students = allDiplomaStudents[id] || {};
+            groups[name].totalStudents += Object.keys(students).length;
+        });
+
+        const names = Object.keys(groups);
+        if (names.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">لا توجد دورات مسجلة بعد. أضف دورة من "إدارة الدورات" أولاً.</div>';
+            return;
+        }
+
+        container.innerHTML = '';
+        names.sort().forEach(name => {
+            const g = groups[name];
+            const safeName = escapeForAttr(name);
+            const onclickName = escapeForJs(name);
+            container.innerHTML += `
+                <div class="group-card" onclick="openLabGroup('${onclickName}')">
+                    <span class="group-icon">📚</span>
+                    <div class="group-name">${safeName}</div>
+                    <div class="group-stats">
+                        <div class="group-stat-item">
+                            <span class="group-stat-value">${g.activeCount}</span>
+                            <span class="group-stat-label">دورة شغّالة</span>
+                        </div>
+                        <div class="group-stat-item">
+                            <span class="group-stat-value total">${g.count}</span>
+                            <span class="group-stat-label">إجمالي</span>
+                        </div>
+                        <div class="group-stat-item">
+                            <span class="group-stat-value total">${g.totalStudents}</span>
+                            <span class="group-stat-label">طالب</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    window.openLabGroup = function(groupName) {
+        currentLabGroupName = groupName;
+        document.getElementById('lab-groups-view').style.display = 'none';
+        document.getElementById('lab-group-detail-view').style.display = 'block';
+        document.getElementById('lab-group-copy-detail-view').style.display = 'none';
+        document.getElementById('lab-group-title').innerText = groupName;
+        document.getElementById('lab-group-search-input').value = '';
+        renderLabGroupCopies();
+    };
+
+    window.backToLabGroups = function() {
+        currentLabGroupName = null;
+        currentLabDipId = null;
+        document.getElementById('lab-groups-view').style.display = 'block';
+        document.getElementById('lab-group-detail-view').style.display = 'none';
+        document.getElementById('lab-group-copy-detail-view').style.display = 'none';
+        renderLabGroups();
+    };
+
+    function renderLabGroupCopies() {
+        const container = document.getElementById('lab-groups-copies-grid');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const todayStr = getLocalDateString();
+        const keys = Object.keys(allDiplomas).filter(id => {
+            const dip = allDiplomas[id];
+            const name = (dip.name || 'بدون اسم').trim();
+            return name === currentLabGroupName;
+        });
+
+        if (keys.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1;">لا توجد دورات مسجلة بهذا الاسم</div>';
+            return;
+        }
+
+        keys.forEach(id => {
+            const dip = allDiplomas[id];
+            const dipStudents = allDiplomaStudents[id] || {};
+            const studentCount = Object.keys(dipStudents).length;
+            const isExpired = dip.end_date && dip.end_date < todayStr;
+            let coursesText = (dip.courses || []).map(c => `${c.name} (${c.lectures})`).join(' • ');
+            let datesHtml = '';
+            if (dip.start_date || dip.end_date) {
+                datesHtml = `<div class="dip-dates">📅 من <strong>${dip.start_date || '?'}</strong> إلى <strong>${dip.end_date || '?'}</strong></div>`;
+            }
+            const safeName = escapeForAttr(dip.name || '');
+            const safeNumber = escapeForAttr(dip.number || '');
+            container.innerHTML += `
+                <div class="diploma-card ${isExpired ? 'expired' : ''}" onclick="openLabDipCopyDetail('${id}')" data-name="${safeName.toLowerCase()}" data-number="${safeNumber}">
+                    <button class="dip-edit" onclick="event.stopPropagation(); openLabDipEditDates('${id}')" title="تعديل الفترة">⋮</button>
+                    <div class="dip-num">${dip.number}</div>
+                    <div class="dip-name">${dip.name}</div>
+                    ${datesHtml}
+                    <div class="dip-courses">${coursesText}</div>
+                    <div class="dip-stats">
+                        <div class="dip-stat-item">
+                            <span class="dip-stat-value">${studentCount}</span>
+                            <span class="dip-stat-label">عدد الطلاب</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+    }
+
+    window.filterLabGroups = function(query) {
+        const q = String(query || '').toLowerCase().trim();
+        const cards = document.querySelectorAll('#lab-groups-copies-grid .diploma-card');
+        cards.forEach(card => {
+            const name = (card.getAttribute('data-name') || '').toLowerCase();
+            const number = String(card.getAttribute('data-number') || '');
+            if (!q || name.includes(q) || number.includes(q)) {
+                card.style.display = '';
+            } else {
+                card.style.display = 'none';
+            }
+        });
+    };
+
+    window.openLabDipCopyDetail = async function(id) {
+        currentLabDipId = id;
+        const dip = allDiplomas[id];
+        if (!dip) return;
+        document.getElementById('lab-group-detail-view').style.display = 'none';
+        document.getElementById('lab-group-copy-detail-view').style.display = 'block';
+        document.getElementById('lab-group-copy-title').innerText = `${dip.name} - رقم ${dip.number}`;
+        await renderLabDipCopyStudents();
+    };
+
+    window.backToLabGroupFromDetail = function() {
+        currentLabDipId = null;
+        document.getElementById('lab-group-copy-detail-view').style.display = 'none';
+        document.getElementById('lab-group-detail-view').style.display = 'block';
+        renderLabGroupCopies();
+    };
+
+    async function renderLabDipCopyStudents() {
+        const container = document.getElementById('lab-group-copy-students-container');
+        const dip = allDiplomas[currentLabDipId];
+        if (!dip) return;
+
+        let students = {};
+        try {
+            const snap = await database.ref('diploma_students/' + currentLabDipId).get();
+            students = snap.exists() ? snap.val() : {};
+        } catch(e) {
+            container.innerHTML = `<div class="empty-state" style="color:red;">خطأ: ${e.message}</div>`;
+            return;
+        }
+
+        let progressMap = {};
+        try {
+            const progSnap = await database.ref('student_progress').get();
+            progressMap = progSnap.exists() ? progSnap.val() : {};
+        } catch(e) {}
+
+        const keys = Object.keys(students);
+        const courseKeys = Object.keys(LMS_COURSES);
+
+        let html = `
+        <div class="excel-table-container">
+            <table class="excel-table">
+                <thead>
+                    <tr>
+                        <th style="width: 40px;">#</th>
+                        <th>الاسم</th>
+                        <th>الرقم</th>
+                        <th>الكلية</th>
+                        ${courseKeys.map(ck => `<th>${LMS_COURSES[ck].title}</th>`).join('')}
+                    </tr>
+                </thead>
+                <tbody>
+        `;
+
+        if (keys.length === 0) {
+            html += `<tr><td colspan="${4 + courseKeys.length}" style="padding: 20px; color: #888; text-align: center;">لا يوجد طلاب مسجلين في هذه الدورة</td></tr>`;
+        } else {
+            keys.forEach((sid, index) => {
+                const st = students[sid];
+                const purePhone = extractPureNumber(st.phone);
+                const stProg = progressMap[purePhone] || {};
+                const bgColor = index % 2 === 0 ? '#ffffff' : '#f9f9f9';
+
+                html += `<tr style="background-color: ${bgColor}; border-bottom: 1px solid #eee;">
+                    <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; background: #f0f0f0; color: #3b1e5a;">${index + 1}</td>
+                    <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #3b1e5a;">${st.name || ''}</td>
+                    <td onclick="openWhatsApp('${st.phone}')" style="padding: 6px; border: 1px solid #ddd; font-family: Tahoma; cursor: pointer; color: inherit; text-decoration: none;" title="مراسلة عبر واتساب">${st.phone || ''}</td>
+                    <td style="padding: 6px; border: 1px solid #ddd;">${st.college || '-'}</td>`;
+
+                courseKeys.forEach(ck => {
+                    const courseCfg = LMS_COURSES[ck];
+                    const totalTasks = courseCfg.tasks + (courseCfg.exam ? 1 : 0);
+                    let completed = 0;
+                    const cProg = stProg[ck] || {};
+                    for (let i = 1; i <= courseCfg.tasks; i++) {
+                        if (cProg[`task_${i}`]) completed++;
+                    }
+                    if (courseCfg.exam && cProg['exam']) completed++;
+                    if (cProg.extra_tasks) {
+                        Object.values(cProg.extra_tasks).forEach(item => {
+                            if (typeof item === 'object' && item && item.completed) completed++;
+                        });
+                    }
+                    const isDone = totalTasks > 0 && completed >= totalTasks;
+                    const color = isDone ? '#28a745' : (completed > 0 ? '#fcc01a' : '#cc0000');
+                    html += `<td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${color};">${completed} / ${totalTasks}</td>`;
+                });
+
+                html += `</tr>`;
+            });
+        }
+
+        html += `</tbody></table></div>`;
+        container.innerHTML = html;
+
+        document.getElementById('export-excel-btn').style.display = keys.length > 0 ? 'block' : 'none';
+    }
+
+    function exportLabGroupToExcel() {
+        if (!currentLabDipId) return;
+        const table = document.querySelector('#lab-group-copy-students-container table');
+        if (!table) return;
+        const clone = table.cloneNode(true);
+        clone.setAttribute('border', '1');
+        clone.style.borderCollapse = 'collapse';
+        clone.style.textAlign = 'center';
+        clone.style.direction = 'rtl';
+        clone.querySelectorAll('th').forEach(th => { th.style.backgroundColor = '#fcc01a'; th.style.color = '#3b1e5a'; th.style.padding = '10px'; });
+        clone.querySelectorAll('td').forEach(td => { td.style.padding = '8px'; });
+        const dipName = allDiplomas[currentLabDipId]?.name || '';
+        const dipNum = allDiplomas[currentLabDipId]?.number || '';
+        const blob = new Blob(['\ufeff', `<html dir="rtl" lang="ar"><head><meta charset="UTF-8"></head><body><h2 style="text-align: center; color: #3b1e5a; font-family: Tahoma;">${dipName} - رقم ${dipNum}</h2>${clone.outerHTML}</body></html>`], { type: 'application/vnd.ms-excel' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `دورة_${dipNum}_${dipName}.xls`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+    }
+
     /* ============ DIPLOMA CERTIFICATES VIEW ============ */
 
     let currentCertGroup = null;
@@ -3268,7 +3457,7 @@
         const activeBtn = document.getElementById('btn-nav-' + viewId);
         if (activeBtn) activeBtn.classList.add('active');
         if (viewId === 'groups') {
-            backToGroupsOverview();
+            backToLabGroups();
         }
     }
 
@@ -3302,8 +3491,10 @@
                 Object.keys(data).forEach(k => { if(LMS_COURSES[k]) Object.assign(LMS_COURSES[k], data[k]); });
             }
             renderSystemSettingsUI();
-            if (document.getElementById('view-groups').classList.contains('active') && currentGroupDetail) {
-                renderGroupStudents(currentGroupDetail);
+            if (document.getElementById('view-groups').classList.contains('active')) {
+                if (currentLabDipId) renderLabDipCopyStudents();
+                else if (currentLabGroupName) renderLabGroupCopies();
+                else renderLabGroups();
             }
         });
         database.ref('settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
@@ -3333,8 +3524,6 @@
                     if (studentsInPeriod.length === 0) backToPeriods(); else showPeriodDetails(currentSelectedDate, currentSelectedPeriod);
                 } else renderPeriodsList(currentSelectedDate);
             } else renderDatesList();
-            renderGroupsOverview();
-            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             updateAdminSubmissionsBell();
             if(isShowingHistory) renderUnblockedList();
         });
@@ -3361,12 +3550,10 @@
                 }
             });
             if(!hasExpired) renderBlockedList();
-            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
         });
 
         database.ref('student_progress').on('value', (snapshot) => {
             allProgress = snapshot.exists() ? snapshot.val() : {};
-            if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             updateAdminSubmissionsBell();
             if (currentSelectedStudent) selectStudent(currentSelectedStudent);
             if(isShowingHistory) renderUnblockedList();
@@ -3588,13 +3775,11 @@
         }
     }
     window.resetSpecificGroupTenure = async function() {
-        if (!currentGroupDetail) return;
-        if(confirm(`تصفير صلاحية المجموعة ${currentGroupDetail}؟`)) {
+        if (!currentLabDipId) return;
+        if(confirm(`تصفير صلاحية هذه الدورة؟`)) {
             try {
-                await database.ref('settings/group_resets/' + extractPureNumber(currentGroupDetail)).set(getLocalDateString());
+                await database.ref('settings/group_resets/' + currentLabDipId).set(getLocalDateString());
                 alert("تم.");
-                renderGroupsOverview();
-                if (currentGroupDetail) renderGroupStudents(currentGroupDetail);
             } catch(e) { alert("خطأ: " + e.message); }
         }
     }
@@ -3665,22 +3850,6 @@
         }
     };
 
-    window.deleteEntireGroup = async function() {
-        let groupSelect = currentGroupDetail;
-        if (!groupSelect) return;
-        if(confirm(`حذف المجموعة (${groupSelect}) نهائياً؟`)) {
-            let studentsInGroup = allStudents.filter(s => isStrictlyNumber(s.group) && extractPureNumber(s.group) === groupSelect);
-            let updates = {}, progressUpdates = {};
-            studentsInGroup.forEach(st => { updates[st.id] = null; progressUpdates[extractPureNumber(st.phone)] = null; });
-            try {
-                await database.ref('students').update(updates);
-                await database.ref('student_progress').update(progressUpdates);
-                alert('تم.');
-                backToGroupsOverview();
-            } catch(err) { alert('خطأ: ' + err.message); }
-        }
-    };
-
     function calculateProgressDynamic(courseKey, completedTasksSet, studentProgressData) {
         let limits = LMS_COURSES[courseKey] || { tasks: 0, exam: false };
         let extraTasksObj = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey].extra_tasks;
@@ -3732,166 +3901,6 @@
             } catch(e) { alert('خطأ: ' + e.message); }
         }
     };
-
-    /* ===== إدارة المجموعات - العرض الجديد ===== */
-
-    let currentGroupDetail = null;
-
-    function getGroupStudents(groupNum) {
-        let studentsInGroup = allStudents.filter(s => isStrictlyNumber(s.group) && extractPureNumber(s.group) === groupNum && !s.canceled);
-        let phoneMap = new Map();
-        studentsInGroup.sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
-        studentsInGroup.forEach(s => { phoneMap.set(extractPureNumber(s.phone), s); });
-        return Array.from(phoneMap.values());
-    }
-
-    function renderGroupsOverview() {
-        const container = document.getElementById('groups-overview-grid');
-        if (!container) return;
-        container.innerHTML = '';
-
-        let groupsSet = new Set();
-        allStudents.forEach(s => {
-            if (isStrictlyNumber(s.group) && !s.canceled) groupsSet.add(extractPureNumber(s.group));
-        });
-
-        if (groupsSet.size === 0) {
-            container.innerHTML = '<div class="empty-state" style="grid-column: 1/-1; background: white; color: #888; border-radius: 10px; padding: 30px;">لا توجد مجموعات مسجلة بعد</div>';
-            return;
-        }
-
-        Array.from(groupsSet).sort((a,b) => parseInt(a) - parseInt(b)).forEach(gNum => {
-            let students = getGroupStudents(gNum);
-            let totalStudents = students.length;
-            let blockedCount = 0;
-            students.forEach(st => {
-                if (blockedPhonesList.some(b => extractPureNumber(b.phone) === extractPureNumber(st.phone))) blockedCount++;
-            });
-            let tenureStr = getGroupTenureText(gNum);
-            container.innerHTML += `
-                <div class="group-overview-card" onclick="openGroupDetail('${gNum}')">
-                    <div class="g-num">${gNum}</div>
-                    <div class="g-tenure">عمر المجموعة: <strong>${tenureStr}</strong></div>
-                    <div class="g-stats">
-                        <div class="g-stat-item">
-                            <span class="g-stat-value total">${totalStudents}</span>
-                            <span class="g-stat-label">طالب</span>
-                        </div>
-                        ${blockedCount > 0 ? `<div class="g-stat-item"><span class="g-stat-value" style="color:#ff4d4d;">${blockedCount}</span><span class="g-stat-label">مقيد</span></div>` : ''}
-                    </div>
-                </div>
-            `;
-        });
-    }
-
-    window.backToGroupsOverview = function() {
-        currentGroupDetail = null;
-        document.getElementById('groups-overview-view').style.display = 'block';
-        document.getElementById('group-detail-view').style.display = 'none';
-        renderGroupsOverview();
-    };
-
-    window.openGroupDetail = function(gNum) {
-        currentGroupDetail = gNum;
-        document.getElementById('groups-overview-view').style.display = 'none';
-        document.getElementById('group-detail-view').style.display = 'block';
-        renderGroupStudents(gNum);
-    };
-
-    function renderGroupStudents(groupNum) {
-        currentGroupDetail = groupNum;
-        let students = getGroupStudents(groupNum);
-        let tenureStr = getGroupTenureText(groupNum);
-
-        document.getElementById('group-detail-title').innerText = `المجموعة ${groupNum}`;
-        document.getElementById('group-detail-sub').innerText = `عدد الطلاب: ${students.length} — عمر المجموعة: ${tenureStr}`;
-
-        // عرض الكورسات المحددة فقط
-        let pillsContainer = document.getElementById('group-course-pills');
-        pillsContainer.innerHTML = '';
-        Object.keys(LMS_COURSES).forEach(cKey => {
-            let course = LMS_COURSES[cKey];
-            pillsContainer.innerHTML += `<div class="course-pill">${course.title} <span class="pill-total">(${course.tasks} تاسك${course.exam ? ' + امتحان' : ''})</span></div>`;
-        });
-
-        let container = document.getElementById('group-students-container');
-        if (students.length === 0) {
-            container.innerHTML = '<div class="empty-state" style="background: white; color: #888; border-radius: 10px; padding: 30px;">لا يوجد طلاب في هذه المجموعة</div>';
-            return;
-        }
-
-        let html = `
-        <div class="excel-table-container">
-            <table class="excel-table">
-                <thead>
-                    <tr>
-                        <th style="width: 40px;">#</th>
-                        <th>الاسم</th>
-                        <th>الرقم</th>
-                        <th>الكلية</th>
-                        ${Object.keys(LMS_COURSES).map(cKey => `<th>${LMS_COURSES[cKey].title}</th>`).join('')}
-                        <th>إجراء</th>
-                    </tr>
-                </thead>
-                <tbody>
-        `;
-
-        students.forEach((st, index) => {
-            let purePhone = extractPureNumber(st.phone);
-            let stProg = allProgress[purePhone] || {};
-            let studentRecords = allStudents.filter(s => extractPureNumber(s.phone) === purePhone && !s.canceled && s.attended && s.tasks);
-            let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-            studentRecords.forEach(r => {
-                let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
-                r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
-            });
-
-            let blockedRec = blockedPhonesList.find(b => extractPureNumber(b.phone) === purePhone);
-            let banIcon = blockedRec ? ` <span style="cursor:help;" title="مُقيد: ${blockedRec.reason}">⛔</span>` : '';
-
-            html += `
-                <tr>
-                    <td style="background:#f0f0f0; font-weight:bold; color:#3b1e5a;">${index + 1}</td>
-                    <td style="font-weight:bold; color:#3b1e5a;"><span onclick="selectStudent('${st.phone}')" style="cursor:pointer; color:inherit;">${st.name || ''}</span>${banIcon}</td>
-                    <td onclick="openWhatsApp('${st.phone}')" style="cursor:pointer; font-family:Tahoma;">${st.phone || ''}</td>
-                    <td>${st.college || '-'}</td>
-            `;
-
-            Object.keys(LMS_COURSES).forEach(cKey => {
-                let prog = calculateProgressDynamic(cKey, cTasks, stProg);
-                let isCompleted = prog.percentage === 100 && prog.totalItems > 0;
-                let text = isCompleted ? '✅' : `${prog.completed}/${prog.totalItems}`;
-                let color = isCompleted ? '#28a745' : (prog.completed > 0 ? '#fcc01a' : '#cc0000');
-                html += `<td style="font-weight:bold; color:${color};">${text}</td>`;
-            });
-
-            html += `
-                    <td><button class="delete-btn" style="margin:0; padding:4px 10px; font-size:12px;" onclick="deleteStudentCompletely('${st.phone}')">حذف</button></td>
-                </tr>
-            `;
-        });
-
-        html += `</tbody></table></div>`;
-        container.innerHTML = html;
-    }
-
-    function exportGroupToExcel() {
-        if (!currentGroupDetail) return;
-        let cloneTable = document.querySelector('#group-students-container table');
-        if (!cloneTable) return;
-        cloneTable = cloneTable.cloneNode(true);
-        cloneTable.setAttribute('border', '1');
-        cloneTable.style.borderCollapse = 'collapse';
-        cloneTable.style.textAlign = 'center';
-        cloneTable.style.direction = 'rtl';
-        cloneTable.querySelectorAll('th').forEach(th => { th.style.backgroundColor = '#fcc01a'; th.style.color = '#3b1e5a'; th.style.padding = '10px'; });
-        cloneTable.querySelectorAll('td').forEach(td => { td.style.padding = '8px'; });
-        cloneTable.querySelectorAll('tr').forEach(tr => { if (tr.lastElementChild) tr.removeChild(tr.lastElementChild); });
-        let blob = new Blob(['\ufeff', `<html dir="rtl" lang="ar"><head><meta charset="UTF-8"></head><body><h2 style="text-align: center; color: #3b1e5a; font-family: Tahoma;">بيانات مجموعة: ${currentGroupDetail} - test</h2>${cloneTable.outerHTML}</body></html>`], { type: 'application/vnd.ms-excel' });
-        let url = URL.createObjectURL(blob); let a = document.createElement('a'); a.href = url; a.download = `مجموعة_${currentGroupDetail}_test.xls`; document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    }
-
-    /* ======================================== */
 
     function toggleAccordion(btnId, panelId) {
         let btn = document.getElementById(btnId); let panel = document.getElementById(panelId);
@@ -4423,11 +4432,6 @@
     function backToPeriods() { currentSelectedPeriod = null; renderPeriodsList(currentSelectedDate); }
     function deleteAllInPeriod() { if (confirm(`حذف؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate && s.time === currentSelectedPeriod).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToPeriods); } }
     function deleteAllInDay() { if (confirm(`حذف اليوم بالكامل؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToDates); } }
-
-    /* ============ نظام إعدادات النظام (stubs) ============ */
-    // دوال مساعدة موجودة مسبقاً في الكود الأصلي (renderSystemSettingsUI, saveSystemSettings, toggleBlockLateBooking, renderCoursesSettings, ...)
-    // تم الاحتفاظ بها كما هي، لكنها لم تُعرَّف بالكامل هنا لتجنب التكرار.
-    // إذا كانت هناك دوال مفقودة في بيئتك، تأكد من إضافتها من الكود الأصلي.
 </script>
 </body>
 </html>
