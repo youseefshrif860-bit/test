@@ -3,102 +3,75 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=15') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=15');
+        if (window.location.href.indexOf('?v=20') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=20');
         }
     </script>
-    <title>test</title>
+
+    <title>معمل روبوتاجي</title>
     <style>
-        body { font-family: Tahoma, Arial, sans-serif; background-color: #3b1e5a; color: white; margin: 0; padding: 20px; font-size: 16px; }
+        body { font-family: Tahoma, Arial, sans-serif; background-color: #3b1e5a; color: white; margin: 0; padding: 20px; }
         .header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px; }
-        .logo { font-size: 30px; font-weight: bold; color: #fcc01a; display: flex; align-items: baseline; gap: 5px; }
-        .admin-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 11px 18px; font-weight: bold; cursor: pointer; border-radius: 5px; font-size: 15px; }
+        .logo { font-size: 28px; font-weight: bold; color: #fcc01a; display: flex; align-items: baseline; gap: 5px; }
+        .admin-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 10px 15px; font-weight: bold; cursor: pointer; border-radius: 5px; }
         .container { background-color: #4c2673; padding: 20px; border-radius: 10px; max-width: 500px; margin: auto; box-shadow: 0 4px 8px rgba(0,0,0,0.2); }
-
-        input, select {
-            width: 100%; padding: 12px; margin-top: 8px; margin-bottom: 15px;
-            border-radius: 6px; border: 1.5px solid #c5b8d8; box-sizing: border-box;
-            font-family: Tahoma; background: #fafafa; color: #3b1e5a; font-size: 15px;
-            transition: border-color 0.2s, box-shadow 0.2s;
-        }
-        input:focus, select:focus {
-            outline: none; border-color: #fcc01a; background: #fff;
-            box-shadow: 0 0 0 3px rgba(252,192,26,0.2);
-        }
-        #dip-add-student-modal input,
-        #dip-payment-modal input,
-        #dip-edit-dates-modal input {
-            border: 2px solid #c5b8d8; background: #f8f5fb;
-            padding: 13px; border-radius: 8px; margin-bottom: 12px;
-            font-size: 15px; box-shadow: inset 0 1px 3px rgba(59,30,90,0.08);
-        }
-        #dip-add-student-modal input:focus,
-        #dip-payment-modal input:focus,
-        #dip-edit-dates-modal input:focus {
-            border-color: #fcc01a; background: #fff;
-            box-shadow: 0 0 0 3px rgba(252,192,26,0.2);
-        }
-
-        .submit-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 13px; width: 100%; font-size: 17px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: 0.3s; }
-
-        #admin-view, #login-view, #manage-view, #student-dashboard, #admin-main-menu, #course-management-view, #diploma-certificates-view { display: none; }
-
+        
+        input, select { width: 100%; padding: 10px; margin-top: 8px; margin-bottom: 15px; border-radius: 5px; border: none; box-sizing: border-box; font-family: Tahoma; }
+        .submit-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 12px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; transition: 0.3s; }
+        
+        #admin-view, #login-view, #manage-view { display: none; }
         table { width: 100%; border-collapse: collapse; margin-top: 15px; background-color: white; color: black; border-radius: 5px; overflow: hidden; }
-        th, td {
-            border: 1px solid #ddd; padding: 8px 6px; text-align: center;
-            font-size: 14px; white-space: nowrap;
-        }
-        th { background-color: #fcc01a; color: #3b1e5a; font-size: 14px; padding: 10px 6px; }
-        .delete-btn { background-color: #ff4d4d; color: white; border: none; padding: 6px 12px; border-radius: 3px; cursor: pointer; font-weight: bold; font-size: 13px; }
-        .delete-all-btn { background-color: #cc0000; color: white; border: none; padding: 11px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 15px; font-size: 15px; }
-
-        .nav-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 16px; font-size: 19px; font-weight: bold; cursor: pointer; border-radius: 5px; text-align: center; width: 100%; margin-bottom: 10px; transition: 0.3s; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: center; font-size: 14px; }
+        th { background-color: #fcc01a; color: #3b1e5a; }
+        .delete-btn { background-color: #ff4d4d; color: white; border: none; padding: 5px 10px; border-radius: 3px; cursor: pointer; font-weight: bold; }
+        .delete-all-btn { background-color: #cc0000; color: white; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 15px; }
+        
+        .nav-btn { background-color: #fcc01a; color: #3b1e5a; border: none; padding: 15px; font-size: 18px; font-weight: bold; cursor: pointer; border-radius: 5px; text-align: center; width: 100%; margin-bottom: 10px; transition: 0.3s; }
         .nav-btn:hover { background-color: #e5ad17; }
-        .back-btn { background-color: white; color: #3b1e5a; border: none; padding: 11px 16px; border-radius: 5px; cursor: pointer; font-weight: bold; font-size: 15px; margin-bottom: 0; }
-        .add-btn { background-color: #28a745; color: white; border: none; padding: 11px; font-weight: bold; cursor: pointer; border-radius: 5px; width: 100%; margin-bottom: 15px; font-size: 15px; }
-
+        .back-btn { background-color: white; color: #3b1e5a; border: none; padding: 10px 15px; border-radius: 5px; cursor: pointer; font-weight: bold; margin-bottom: 0; }
+        .add-btn { background-color: #28a745; color: white; border: none; padding: 10px; font-weight: bold; cursor: pointer; border-radius: 5px; width: 100%; margin-bottom: 15px; }
+        
         .attendance-check { width: 22px; height: 22px; cursor: pointer; accent-color: #3b1e5a; vertical-align: middle; }
 
         .modal-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background-color: rgba(0, 0, 0, 0.7); z-index: 1000; justify-content: center; align-items: center; }
         .modal-content { background-color: white; padding: 20px; border-radius: 10px; border: 3px solid #fcc01a; width: 90%; max-width: 500px; text-align: right; color: black; box-shadow: 0 4px 15px rgba(0,0,0,0.3); max-height: 90vh; overflow-y: auto; }
-        .modal-content h3 { font-size: 18px; }
-        .modal-content label { font-size: 15px; }
-        .modal-close-btn { background-color: #28a745; color: white; border: none; padding: 11px; width: 100%; font-size: 17px; font-weight: bold; border-radius: 5px; cursor: pointer; margin-top: 20px; }
-
+        .modal-close-btn { background-color: #28a745; color: white; border: none; padding: 10px; width: 100%; font-size: 16px; font-weight: bold; border-radius: 5px; cursor: pointer; margin-top: 20px; }
+        
         #search-suggestions, #submissions-dropdown { position: absolute; width: 100%; background: white; color: black; z-index: 1001; max-height: 220px; overflow-y: auto; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: none; top: 100%; right: 0; }
-        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #ddd; font-size: 15px; text-align: right; }
+        .suggestion-item { padding: 10px; cursor: pointer; border-bottom: 1px solid #ddd; font-size: 14px; text-align: right; }
         .suggestion-item:hover { background-color: #fcc01a; color: #3b1e5a; font-weight: bold; }
 
         .dashboard-layout { display: flex; flex-wrap: wrap; gap: 20px; align-items: flex-start; }
-        .sidebar { background-color: #2a1540; padding: 20px; border-radius: 10px; width: 100%; max-width: 260px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
+        .sidebar { background-color: #2a1540; padding: 20px; border-radius: 10px; width: 100%; max-width: 250px; box-sizing: border-box; display: flex; flex-direction: column; gap: 10px; }
         .sidebar-header-row { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; position: relative; }
         .sidebar-title { color: #fcc01a; margin: 0; font-size: 22px; }
-        #admin-name-display { text-align: center; color: #0c0213; font-weight: bold; font-size: 15px; margin-bottom: 15px; text-shadow: 0px 0px 3px rgba(255, 255, 255, 0.4); font-family: Tahoma; letter-spacing: 1px; }
-
-        .sidebar-btn { background-color: #4c2673; color: white; border: 1px solid #fcc01a; padding: 13px; border-radius: 5px; font-weight: bold; cursor: pointer; text-align: right; transition: 0.3s; font-size: 15px; }
+        #admin-name-display { text-align: center; color: #0c0213; font-weight: bold; font-size: 14px; margin-bottom: 15px; text-shadow: 0px 0px 3px rgba(255, 255, 255, 0.4); font-family: Tahoma; letter-spacing: 1px; }
+        
+        .sidebar-btn { background-color: #4c2673; color: white; border: 1px solid #fcc01a; padding: 12px; border-radius: 5px; font-weight: bold; cursor: pointer; text-align: right; transition: 0.3s; }
         .sidebar-btn:hover, .sidebar-btn.active { background-color: #fcc01a; color: #3b1e5a; }
-        .sidebar-logout { background-color: #ff4d4d; color: white; border: none; padding: 13px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; font-size: 15px; }
+        .sidebar-logout { background-color: #ff4d4d; color: white; border: none; padding: 12px; border-radius: 5px; font-weight: bold; cursor: pointer; margin-top: 20px; text-align: center; }
         .main-content { flex: 1; background-color: #4c2673; padding: 20px; border-radius: 10px; box-sizing: border-box; min-width: 300px; overflow-x: auto; }
         .view-section { display: none; }
         .view-section.active { display: block; }
-
-        .toggle-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.1); padding: 12px; border-radius: 5px; margin-bottom: 10px; }
-        .toggle-btn { padding: 9px 16px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; min-width: 85px; font-size: 14px; }
+        
+        .toggle-row { display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.1); padding: 10px; border-radius: 5px; margin-bottom: 10px; }
+        .toggle-btn { padding: 8px 15px; border-radius: 5px; border: none; font-weight: bold; cursor: pointer; min-width: 80px; }
         .btn-enable { background-color: #28a745; color: white; }
         .btn-disable { background-color: #ff4d4d; color: white; }
         .btn-inactive { background-color: #666; color: white; opacity: 0.5; }
 
-        .course-accordion { background-color: #f4f4f4; color: #3b1e5a; cursor: pointer; padding: 13px; width: 100%; border: 2px solid #ddd; text-align: right; font-weight: bold; font-size: 15px; border-radius: 5px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
+        .course-accordion { background-color: #f4f4f4; color: #3b1e5a; cursor: pointer; padding: 12px; width: 100%; border: 2px solid #ddd; text-align: right; font-weight: bold; font-size: 15px; border-radius: 5px; margin-top: 10px; display: flex; justify-content: space-between; align-items: center; transition: 0.3s; }
         .course-accordion:hover, .course-accordion.active { background-color: #e6e6e6; border-color: #fcc01a; }
         .course-panel { padding: 15px; display: none; background-color: white; border: 1px solid #ddd; border-top: none; border-radius: 0 0 5px 5px; }
-        .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; align-items: start; }
-        .task-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 14px; font-family: Tahoma; padding: 6px; border-radius: 5px; transition: 0.2s; border: 1px solid transparent; }
+        .tasks-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(135px, 1fr)); gap: 10px; align-items: start; }
+        .task-item { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; font-size: 13px; font-family: Tahoma; padding: 6px; border-radius: 5px; transition: 0.2s; border: 1px solid transparent; }
         .task-item:hover { background-color: #f9f9f9; border-color: #eee; }
-        .exam-item { display: flex; align-items: center; gap: 5px; font-size: 15px; font-weight: bold; margin-top: 15px; border-top: 1px dashed #ddd; padding-top: 10px; padding-bottom: 5px; border-radius: 4px; transition: 0.2s; }
+        .exam-item { display: flex; align-items: center; gap: 5px; font-size: 14px; font-weight: bold; margin-top: 15px; border-top: 1px dashed #ddd; padding-top: 10px; padding-bottom: 5px; border-radius: 4px; transition: 0.2s; }
         .exam-item:hover { background-color: #f0f0f0; }
         .progress-container { width: 100%; background-color: #ddd; border-radius: 5px; margin-top: 5px; height: 8px; overflow: hidden; }
         .progress-bar { height: 100%; background-color: #28a745; width: 0%; transition: width 0.4s ease; }
@@ -106,9 +79,9 @@
 
         .manual-add-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 5px; border: 1px solid #fcc01a; margin-bottom: 20px; }
         .manual-add-box input { margin-bottom: 10px; }
-
+        
         .settings-card { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 5px; border: 1px solid #ddd; margin-bottom: 15px; }
-        .settings-card h4 { color: #fcc01a; margin-top: 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; font-size: 17px; }
+        .settings-card h4 { color: #fcc01a; margin-top: 0; border-bottom: 1px solid #ddd; padding-bottom: 5px; }
 
         .protected-task-img { max-width: 100%; height: auto; border-radius: 5px; margin-bottom: 10px; user-select: none; -webkit-user-drag: none; pointer-events: none; box-shadow: 0 2px 6px rgba(0,0,0,0.4); }
 
@@ -118,311 +91,12 @@
         .direct-blue-link { color: #0066cc; text-decoration: underline; font-weight: bold; word-break: break-all; cursor: pointer; }
         .direct-blue-link:hover { color: #004499; }
         .chat-bubble-box { display: none; width: 100%; background: #f0f2f5; border: 1px solid #ccc; border-radius: 12px; padding: 6px; margin-top: 4px; box-sizing: border-box; }
-        .chat-bubble-input { width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 5px 8px; font-size: 12px; margin: 0 0 5px 0; outline: none; background: white; }
-        .chat-bubble-send { background-color: #0084ff; color: white; border: none; border-radius: 10px; padding: 5px 10px; font-size: 12px; font-weight: bold; cursor: pointer; width: 100%; }
+        .chat-bubble-input { width: 100%; border: 1px solid #ddd; border-radius: 10px; padding: 5px 8px; font-size: 11px; margin: 0 0 5px 0; outline: none; background: white; }
+        .chat-bubble-send { background-color: #0084ff; color: white; border: none; border-radius: 10px; padding: 4px 10px; font-size: 11px; font-weight: bold; cursor: pointer; width: 100%; }
+        .cert-section-card { background: rgba(255,255,255,0.06); border: 1px solid #fcc01a; border-radius: 8px; padding: 15px; margin-bottom: 20px; }
 
         @media (max-width: 768px) {
             .sidebar { max-width: 100%; }
-        }
-
-        .login-hero { text-align: center; margin-bottom: 15px; }
-        .login-hero .icon { font-size: 56px; line-height: 1; }
-        .login-hero h2 { color: #fcc01a; margin: 10px 0 5px 0; font-size: 22px; }
-        .login-hero p { color: #ddd; margin: 0; font-size: 15px; }
-
-        .student-dashboard-wrap { max-width: 1000px; margin: auto; }
-        .dash-header {
-            background: linear-gradient(135deg, #4c2673, #2a1540);
-            border: 2px solid #fcc01a; border-radius: 12px; padding: 20px;
-            display: flex; justify-content: space-between; align-items: center;
-            margin-bottom: 15px; flex-wrap: wrap; gap: 10px;
-        }
-        .dash-greeting { font-size: 23px; color: #fcc01a; font-weight: bold; }
-        .dash-meta { font-size: 15px; color: #ddd; margin-top: 5px; }
-        .dash-section { background: #4c2673; padding: 20px; border-radius: 12px; margin-bottom: 15px; }
-        .dash-section-title {
-            color: #fcc01a; font-size: 18px; border-bottom: 2px solid #fcc01a;
-            padding-bottom: 8px; margin-bottom: 15px; margin-top: 0;
-            display: flex; justify-content: space-between; align-items: center;
-            gap: 10px; flex-wrap: wrap;
-        }
-        .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 12px; }
-        .stat-card { background: rgba(255,255,255,0.1); padding: 18px; border-radius: 10px; text-align: center; border: 1px solid rgba(252,192,26,0.3); }
-        .stat-value { font-size: 32px; font-weight: bold; color: #fcc01a; }
-        .stat-label { font-size: 14px; color: #ddd; margin-top: 4px; }
-        .appt-card {
-            background: rgba(255,255,255,0.08); border-radius: 8px; padding: 14px;
-            margin-bottom: 10px; border-right: 4px solid #fcc01a;
-            display: flex; justify-content: space-between; align-items: center;
-            gap: 10px; flex-wrap: wrap;
-        }
-        .appt-course { color: #fcc01a; font-weight: bold; font-size: 16px; }
-        .appt-date { font-size: 14px; margin-top: 4px; color: #ddd; }
-        .task-mini {
-            background: rgba(255,255,255,0.08); border-radius: 8px;
-            padding: 12px 15px; margin-bottom: 8px; border-right: 4px solid #fcc01a;
-            display: flex; justify-content: space-between; align-items: center;
-            gap: 8px; flex-wrap: wrap;
-        }
-        .empty-state { text-align: center; color: #bbb; padding: 20px; font-size: 15px; }
-
-        .admin-menu-wrapper { max-width: 950px; margin: auto; }
-        .admin-menu-grid {
-            display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-            gap: 20px; margin-top: 20px;
-        }
-        .admin-menu-card {
-            background: linear-gradient(135deg, #4c2673, #2a1540);
-            border: 3px solid #fcc01a; border-radius: 15px;
-            padding: 35px 20px; text-align: center; cursor: pointer; transition: 0.3s;
-        }
-        .admin-menu-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(252,192,26,0.4);
-            border-color: #ffe066;
-        }
-        .admin-menu-card .menu-icon { font-size: 54px; margin-bottom: 12px; display: block; }
-        .admin-menu-card .menu-title { font-size: 21px; font-weight: bold; color: #fcc01a; margin-bottom: 8px; }
-        .admin-menu-card .menu-desc { font-size: 14px; color: #ddd; line-height: 1.5; }
-
-        .diploma-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px; }
-        .diploma-card {
-            background: linear-gradient(135deg, #4c2673, #2a1540);
-            border: 2px solid #fcc01a; border-radius: 12px; padding: 20px;
-            text-align: center; cursor: pointer; transition: 0.3s; position: relative;
-        }
-        .diploma-card:hover { transform: scale(1.03); box-shadow: 0 5px 20px rgba(252,192,26,0.3); }
-        .diploma-card.expired {
-            background: linear-gradient(135deg, #4a4a4a, #2a2a2a);
-            border-color: #888;
-            filter: grayscale(100%);
-        }
-        .diploma-card.expired:hover {
-            border-color: #bbb;
-            box-shadow: 0 5px 20px rgba(150,150,150,0.3);
-        }
-        .diploma-card .dip-num { font-size: 32px; font-weight: bold; color: #fcc01a; }
-        .diploma-card .dip-name { font-size: 18px; color: white; margin-top: 6px; font-weight: bold; }
-        .diploma-card .dip-courses { font-size: 13px; color: #ddd; margin-top: 10px; line-height: 1.6; }
-        .diploma-card .dip-delete {
-            position: absolute; top: 8px; left: 8px;
-            background: #ff4d4d; color: white; border: none;
-            border-radius: 50%; width: 28px; height: 28px;
-            cursor: pointer; font-weight: bold; line-height: 1; font-size: 15px;
-        }
-        .diploma-card .dip-edit {
-            position: absolute; top: 8px; right: 8px;
-            background: #4c2673; color: #fcc01a; border: 1px solid #fcc01a;
-            border-radius: 50%; width: 30px; height: 30px;
-            cursor: pointer; font-weight: bold; line-height: 1;
-            font-size: 20px; display: flex; align-items: center; justify-content: center;
-            transition: 0.2s;
-        }
-        .diploma-card .dip-edit:hover { background: #fcc01a; color: #3b1e5a; }
-        .dip-dates { font-size: 12px; color: #ddd; margin-top: 8px; line-height: 1.6; }
-        .dip-dates strong { color: #fcc01a; }
-
-        .dip-stats {
-            display: flex;
-            justify-content: space-around;
-            margin-top: 12px;
-            padding-top: 12px;
-            border-top: 1px solid rgba(252,192,26,0.3);
-        }
-        .dip-stat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-        .dip-stat-value { font-size: 20px; font-weight: bold; color: #fcc01a; }
-        .dip-stat-label { font-size: 12px; color: #ccc; }
-        .diploma-card.expired .dip-stat-value { color: #ccc; }
-
-        .group-card {
-            background: linear-gradient(135deg, #4c2673, #2a1540);
-            border: 3px solid #fcc01a;
-            border-radius: 15px;
-            padding: 25px 20px;
-            text-align: center;
-            cursor: pointer;
-            transition: 0.3s;
-            position: relative;
-        }
-        .group-card:hover {
-            transform: translateY(-5px);
-            box-shadow: 0 10px 30px rgba(252,192,26,0.4);
-            border-color: #ffe066;
-        }
-        .group-card .group-icon { font-size: 48px; margin-bottom: 10px; display: block; }
-        .group-card .group-name { font-size: 20px; font-weight: bold; color: #fcc01a; margin-bottom: 12px; }
-        .group-card .group-stats { display: flex; justify-content: space-around; border-top: 1px solid rgba(252,192,26,0.3); padding-top: 12px; }
-        .group-card .group-stat-item { display: flex; flex-direction: column; align-items: center; gap: 3px; }
-        .group-card .group-stat-value { font-size: 24px; font-weight: bold; color: #28a745; }
-        .group-card .group-stat-value.total { color: #fcc01a; }
-        .group-card .group-stat-value.warning { color: #ff8c00; }
-        .group-card .group-stat-label { font-size: 12px; color: #ccc; }
-
-        .dip-money-info {
-            background: linear-gradient(135deg, #f8f5fb, #efe9f5);
-            border: 2px solid #fcc01a;
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 15px;
-        }
-        .dip-money-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 9px 0;
-            font-size: 15px;
-            border-bottom: 1px dashed #ddd;
-        }
-        .dip-money-row:last-child { border-bottom: none; }
-        .dip-money-label { color: #3b1e5a; font-weight: bold; }
-        .dip-money-value { color: #28a745; font-weight: bold; font-family: Tahoma; }
-        .dip-money-value.pending { color: #cc0000; }
-
-        .course-input-row { display: flex; gap: 10px; margin-bottom: 10px; align-items: center; }
-        .course-input-row input[type="text"] { flex: 2; margin: 0; }
-        .course-input-row input[type="number"] { flex: 1; margin: 0; }
-        .course-input-row button {
-            background: #ff4d4d; color: white; border: none; padding: 10px 14px;
-            border-radius: 5px; cursor: pointer; font-weight: bold;
-        }
-
-        .excel-table-container { overflow-x: auto; background: white; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.1); }
-        .excel-table { width: 100%; border-collapse: collapse; margin-top: 0; background: white; color: black; }
-        .excel-table th {
-            background-color: #3b1e5a; color: #fcc01a;
-            padding: 8px 5px; border: 1px solid #ddd;
-            white-space: nowrap; font-size: 13px;
-        }
-        .excel-table td {
-            padding: 6px 5px; border: 1px solid #ddd;
-            vertical-align: middle; white-space: nowrap; font-size: 13px;
-        }
-        .lecture-grid { display: flex; flex-wrap: nowrap; gap: 3px; justify-content: flex-start; }
-        .lecture-checkbox-mini {
-            display: inline-flex; align-items: center; gap: 3px;
-            padding: 3px 6px; border-radius: 4px; font-size: 11px;
-            cursor: pointer; font-weight: bold; transition: 0.2s; white-space: nowrap;
-        }
-        .lecture-checkbox-mini input { margin: 0; width: 13px; height: 13px; accent-color: #28a745; cursor: pointer; }
-        .lecture-checkbox-mini.has-meta { border-width: 2px !important; }
-
-        .search-diploma-input {
-            width: 100%; padding: 13px; margin-bottom: 15px;
-            border: 2px solid #fcc01a; border-radius: 8px;
-            background: #fff; color: #3b1e5a; font-size: 15px; font-weight: bold;
-        }
-
-        .calendar-controls {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255,255,255,0.1);
-            padding: 10px;
-            border-radius: 8px;
-            margin-bottom: 10px;
-            gap: 8px;
-        }
-        .cal-nav-btn {
-            background: #fcc01a;
-            color: #3b1e5a;
-            border: none;
-            width: 42px;
-            height: 42px;
-            border-radius: 50%;
-            font-size: 22px;
-            font-weight: bold;
-            cursor: pointer;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.2s;
-            flex-shrink: 0;
-            line-height: 1;
-        }
-        .cal-nav-btn:hover { background: #ffe066; transform: scale(1.08); }
-        .cal-nav-btn:active { transform: scale(0.95); }
-        .cal-selectors {
-            display: flex;
-            gap: 8px;
-            flex: 1;
-            justify-content: center;
-            flex-wrap: wrap;
-        }
-        .cal-selectors select {
-            padding: 9px 14px;
-            border-radius: 6px;
-            border: 2px solid #fcc01a;
-            background: white;
-            color: #3b1e5a;
-            font-weight: bold;
-            cursor: pointer;
-            font-family: Tahoma;
-            font-size: 14px;
-            min-width: 120px;
-            margin: 0;
-            width: auto;
-        }
-        .calendar-actions {
-            display: flex;
-            justify-content: space-between;
-            margin-bottom: 12px;
-            gap: 8px;
-        }
-        .cal-today-btn {
-            background: #28a745;
-            color: white;
-            border: none;
-            padding: 10px 18px;
-            border-radius: 6px;
-            cursor: pointer;
-            font-weight: bold;
-            font-size: 14px;
-            transition: 0.2s;
-            font-family: Tahoma;
-        }
-        .cal-today-btn:hover { background: #34c759; transform: translateY(-1px); }
-        .calendar-grid { display: grid; grid-template-columns: repeat(7, 1fr); gap: 5px; text-align: center; direction: rtl;}
-        .calendar-day-header { background: #fcc01a; color: #3b1e5a; font-weight: bold; padding: 8px 0; border-radius: 3px; font-size: 14px;}
-        .calendar-day { background: white; color: #3b1e5a; padding: 10px 5px; border-radius: 5px; border: 2px solid transparent; position: relative; font-weight: bold; min-height: 62px; display: flex; flex-direction: column; align-items: center; justify-content: center; transition: 0.2s;}
-        .calendar-day.empty { background: transparent; border: 1px dashed rgba(255,255,255,0.2); color: transparent; pointer-events: none; min-height: 62px;}
-        .calendar-day.has-data { cursor: pointer; border-color: #fcc01a; background: #e6e6e6;}
-        .calendar-day:not(.empty) { cursor: pointer; }
-        .calendar-day:not(.empty):hover {
-            background: #fcc01a;
-            color: #3b1e5a;
-            transform: scale(1.06);
-            box-shadow: 0 4px 10px rgba(0,0,0,0.25);
-        }
-        .calendar-badge { position: absolute; top: -5px; right: -5px; background: #ff4d4d; color: white; border-radius: 50%; width: 20px; height: 20px; font-size: 11px; display: flex; justify-content: center; align-items: center; box-shadow: 0 2px 4px rgba(0,0,0,0.3); }
-        .calendar-day.today { border: 3px solid #28a745 !important; background-color: #e8f5e9 !important; animation: pulseToday 2s infinite; }
-        @keyframes pulseToday {
-            0%, 100% { box-shadow: 0 0 0 0 rgba(40, 167, 69, 0.7); }
-            50%     { box-shadow: 0 0 0 8px rgba(40, 167, 69, 0); }
-        }
-
-        .lab-tasks-course-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            background: rgba(255,255,255,0.08);
-            padding: 12px;
-            border-radius: 6px;
-            margin-bottom: 8px;
-            gap: 10px;
-        }
-        .lab-tasks-course-row label {
-            font-weight: bold;
-            color: #fcc01a;
-            flex: 1;
-            font-size: 15px;
-        }
-        .lab-tasks-course-row input {
-            width: 100px;
-            margin: 0;
-            padding: 8px;
-            border: 2px solid #fcc01a;
-            border-radius: 5px;
-            text-align: center;
-            font-weight: bold;
         }
     </style>
 
@@ -437,23 +111,49 @@
     </script>
 </head>
 <body>
-    <div class="header">
-    <div class="logo">test</div>
+
+<div class="header">
+    <div class="logo">روبوتاجي</div>
     <button class="admin-btn" onclick="showLogin()">الإدارة</button>
 </div>
+
+<!-- واجهة الطالب -->
 <div class="container" id="student-view">
-    <div class="login-hero">
-        <div class="icon">🤖</div>
-        <h2>أهلاً بك في test</h2>
-        <p>سجّل دخولك برقم هاتفك ورقم مجموعتك</p>
-    </div>
-    <form id="studentLoginForm" onsubmit="event.preventDefault(); studentLogin();">
+    <form id="regForm">
+        <label>الاسم:</label>
+        <input type="text" id="name" required>
+
         <label>رقم الهاتف:</label>
-        <input type="tel" id="student-login-phone" required placeholder="01xxxxxxxxx" autocomplete="off">
+        <input type="tel" id="phone" required>
+
         <label>رقم المجموعة:</label>
-        <input type="text" id="student-login-group" required placeholder="مثال: 1" autocomplete="off">
-        <button type="submit" class="submit-btn" id="student-login-btn">دخول</button>
+        <input type="text" id="group" required>
+
+        <label>الكورس:</label>
+        <select id="course" required>
+            <option value="" disabled selected>اختر الكورس</option>
+            <option value="PLC">PLC</option>
+            <option value="Classic Control">Classic Control</option>
+            <option value="Motor Drive">Motor Drive</option>
+        </select>
+
+        <label>مواعيد الحضور:</label>
+        <div id="appointments-container">
+            <div class="appointment-row" style="display: flex; gap: 10px; margin-bottom: 10px; align-items: center;">
+                <input type="date" class="date-input" required onchange="updateTimeOptions(this)" style="margin:0; width: 50%;">
+                <select class="time-input" required style="margin:0; width: 50%;">
+                    <option value="" disabled selected>اختر التاريخ أولاً</option>
+                </select>
+            </div>
+        </div>
+        
+        <button type="button" class="add-btn" onclick="addAppointment()">+ إضافة موعد آخر</button>
+        <button type="submit" class="submit-btn" id="main-submit-btn">تأكيد التسجيل</button>
     </form>
+    
+    <button type="button" class="nav-btn" style="background-color: white; color: #3b1e5a; border: 2px solid #fcc01a; margin-top: 15px;" onclick="showManageView()">إدارة مواعيدي</button>
+    
+    <!-- زر أيقونة واتساب للتواصل مع المعمل -->
     <div style="text-align: center; margin-top: 20px;">
         <button type="button" onclick="contactLab()" style="background: none; border: none; cursor: pointer; transition: transform 0.2s;" onmouseover="this.style.transform='scale(1.1)'" onmouseout="this.style.transform='scale(1)'" title="تواصل مع المعمل">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 448 512" width="45" height="45" fill="#25D366">
@@ -463,10 +163,7 @@
     </div>
 </div>
 
-<div id="student-dashboard" style="display: none;">
-    <div class="student-dashboard-wrap" id="student-dashboard-content"></div>
-</div>
-
+<!-- إدارة مواعيد الطالب -->
 <div class="container" id="manage-view">
     <h2 style="text-align: center; color: #fcc01a;">إدارة مواعيدي</h2>
     <label>رقم الهاتف:</label>
@@ -478,34 +175,25 @@
     <div id="manage-results" style="margin-top: 20px;"></div>
 </div>
 
-<div class="modal-overlay" id="book-appointment-modal" style="z-index: 1007;">
-    <div class="modal-content" style="text-align: right;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">حجز موعد جديد</h3>
-        <label>الكورس:</label>
-        <select id="book-course"></select>
-        <label>التاريخ:</label>
-        <input type="date" id="book-date" onchange="updateBookTimeOptions()">
-        <label>الوقت:</label>
-        <select id="book-time"><option value="">اختر التاريخ أولاً</option></select>
-        <button class="submit-btn" style="margin-top: 10px;" onclick="submitBookAppointment()">تأكيد الحجز</button>
-        <button class="back-btn" style="width: 100%; margin-top: 10px;" onclick="closeBookAppointmentModal()">إلغاء</button>
-    </div>
-</div>
-
+<!-- نافذة عرض الـ Task المحمية للطالب -->
 <div class="modal-overlay" id="student-task-viewer-modal" style="z-index: 1005;">
     <div class="modal-content" style="max-width: 600px; text-align: center; user-select: none;" oncontextmenu="return false;">
         <h3 id="viewer-task-title" style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;"></h3>
         <div id="viewer-task-container" style="max-height: 55vh; overflow-y: auto; background: #2a1540; padding: 12px; border-radius: 5px; display: none; margin-bottom: 12px;" oncontextmenu="return false;"></div>
-        <div id="viewer-task-notes" style="background: #f9f9f9; border: 1px solid #ddd; border-right: 4px solid #fcc01a; border-radius: 5px; padding: 12px; margin-bottom: 12px; text-align: right; display: none; color: #3b1e5a; font-size: 15px; line-height: 1.7;"></div>
+        <div id="viewer-task-notes" style="background: #f9f9f9; border: 1px solid #ddd; border-right: 4px solid #fcc01a; border-radius: 5px; padding: 12px; margin-bottom: 12px; text-align: right; display: none; color: #3b1e5a; font-size: 14px; line-height: 1.7;"></div>
+        
+        <!-- خانة تسليم الرابط للطالب (تظهر فقط إذا كان التاسك مفعلاً للتسليم) -->
         <div id="viewer-submission-box" style="display: none; background: #f0f2f5; padding: 12px; border-radius: 8px; border: 1px solid #ccc; margin-top: 10px; text-align: right;">
-            <label style="color: #3b1e5a; font-weight: bold; font-size: 14px; display: block; margin-bottom: 5px;">تسليم رابط الـ Task (Drive):</label>
-            <input type="url" id="student-submit-link-input" placeholder="ضع الرابط هنا (https://...)" style="margin: 0 0 8px 0; border: 1px solid #bbb; background: white; font-size: 14px;">
-            <button type="button" class="submit-btn" id="student-submit-link-btn" style="padding: 9px; font-size: 15px;" onclick="submitStudentTaskLink()">إرسال الرابط</button>
+            <label style="color: #3b1e5a; font-weight: bold; font-size: 13px; display: block; margin-bottom: 5px;">تسليم رابط الـ Task (Drive):</label>
+            <input type="url" id="student-submit-link-input" placeholder="ضع الرابط هنا (https://...)" style="margin: 0 0 8px 0; border: 1px solid #bbb; background: white; font-size: 13px;">
+            <button type="button" class="submit-btn" id="student-submit-link-btn" style="padding: 8px; font-size: 14px;" onclick="submitStudentTaskLink()">إرسال الرابط</button>
         </div>
+
         <button class="modal-close-btn" style="background-color: #3b1e5a; margin-top: 15px;" onclick="closeStudentTaskViewer()">إغلاق</button>
     </div>
 </div>
 
+<!-- نافذة إشعارات تعليقات الإدارة للطالب -->
 <div class="modal-overlay" id="student-comments-modal" style="z-index: 1006;">
     <div class="modal-content" style="max-width: 450px; text-align: right;">
         <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">ملاحظات الإدارة على الـ Tasks</h3>
@@ -514,51 +202,12 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="dip-add-student-modal" style="z-index: 1005;">
-    <div class="modal-content" style="max-width: 400px; text-align: right;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">إضافة طالب جديد للدورة</h3>
-        <input type="text" id="dip-new-st-name" placeholder="الاسم">
-        <input type="text" id="dip-new-st-address" placeholder="العنوان">
-        <input type="text" id="dip-new-st-college" placeholder="الكلية">
-        <input type="tel" id="dip-new-st-phone" placeholder="رقم الهاتف (11 رقم)">
-        <button class="submit-btn" style="margin-top: 10px;" onclick="addStudentToDiploma()">حفظ الطالب</button>
-        <button class="back-btn" style="width: 100%; margin-top: 10px;" onclick="closeDipAddStudentModal()">إلغاء</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="dip-payment-modal" style="z-index: 1006;">
-    <div class="modal-content" style="max-width: 380px; text-align: center;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">إدارة الرسوم</h3>
-        <div id="dip-payment-meta" style="font-size: 13px; color: #666; margin-bottom: 10px;"></div>
-        <p style="font-size:15px; font-weight:bold;">المدفوع حالياً: <span id="dip-current-paid" style="color:#28a745;">0</span></p>
-        <label style="text-align:right; display:block; font-size:14px; color:#3b1e5a; font-weight:bold;">إضافة مبلغ (سيتم جمعه مع الحالي):</label>
-        <input type="number" id="dip-pay-add" placeholder="مثال: 100">
-        <label style="text-align:right; display:block; font-size:14px; color:#3b1e5a; font-weight:bold;">أو تعديل الإجمالي مباشرة:</label>
-        <input type="number" id="dip-pay-set" placeholder="مثال: 600">
-        <button class="submit-btn" onclick="saveDipPayment()">تأكيد وحفظ</button>
-        <button class="back-btn" style="width: 100%; margin-top: 10px; border: 1px solid #ddd;" onclick="closeDipPaymentModal()">إلغاء</button>
-    </div>
-</div>
-
-<div class="modal-overlay" id="dip-edit-dates-modal" style="z-index: 1008;">
-    <div class="modal-content" style="max-width: 450px; text-align: right;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">تعديل فترة الدورة</h3>
-        <div class="dip-money-info" id="dip-money-info" style="display: none;"></div>
-        <input type="hidden" id="edit-dip-context" value="courses">
-        <label>بداية الدورة:</label>
-        <input type="date" id="edit-dip-start" onchange="handleEditStartChange()">
-        <label>نهاية الدورة:</label>
-        <input type="date" id="edit-dip-end">
-        <button class="submit-btn" style="margin-top:10px;" onclick="saveDipDates()">حفظ التعديل</button>
-        <button class="back-btn" style="width:100%; margin-top:10px;" onclick="closeDipEditDatesModal()">إلغاء</button>
-    </div>
-</div>
-
+<!-- نافذة إعدادات Tasks PDF للأدمن -->
 <div class="modal-overlay" id="pdf-config-modal" style="z-index: 1004;">
     <div class="modal-content" style="max-width: 650px; text-align: right;">
         <h3 id="pdf-modal-title" style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;"></h3>
         <div style="margin-bottom: 15px; background: #f4f4f4; padding: 10px; border-radius: 5px; border: 1px solid #ddd;">
-            <label style="color:#3b1e5a; font-weight:bold; font-size: 15px;">رفع ملف PDF 📁:</label>
+            <label style="color:#3b1e5a; font-weight:bold; font-size: 14px;">رفع ملف PDF 📁 (لتقطيع الصفحات المحددة إلى صور محمية وحذف القديم تلقائياً):</label>
             <input type="file" id="pdf-file-input" accept="application/pdf" style="margin-top: 8px; margin-bottom: 0; background: white; border: 1px solid #ccc;">
         </div>
         <div id="pdf-tasks-list" style="max-height: 360px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
@@ -567,38 +216,24 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="course-config-modal" style="z-index: 1009;">
-    <div class="modal-content" style="max-width: 400px; text-align: right;">
-        <h3 id="course-config-title" style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;"></h3>
-        <label>السعة القصوى للفترة:</label>
-        <input type="number" id="course-config-limit" min="1" value="8">
-        <label>عدد tasks القادمة (0 = كل التاسكات):</label>
-        <input type="number" id="course-config-upcoming" min="0" value="0">
-        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
-            <input type="checkbox" id="course-config-exam" style="width:18px; height:18px; margin:0;">
-            <span>تفعيل الاختبار النهائي (Final Exam)</span>
-        </label>
-        <button class="submit-btn" onclick="saveCourseConfig()">حفظ الإعدادات</button>
-        <button class="back-btn" style="width:100%; margin-top:10px; border: 1px solid #ccc;" onclick="closeCourseConfigModal()">إلغاء</button>
-    </div>
-</div>
-
+<!-- التنبيهات -->
 <div class="modal-overlay" id="success-modal">
     <div class="modal-content">
-        <strong style="color: black; display: block; margin-bottom: 10px; font-size: 17px;" id="success-msg-display">تم تأكيد التسجيل.</strong>
-        <ul id="modal-appointments-list" style="margin: 0; padding-right: 20px; color: black; line-height: 1.8; font-size: 15px;"></ul>
+        <strong style="color: black; display: block; margin-bottom: 10px; font-size: 16px;" id="success-msg-display">تم تأكيد التسجيل. بيان المواعيد:</strong>
+        <ul id="modal-appointments-list" style="margin: 0; padding-right: 20px; color: black; line-height: 1.8; font-size: 14px;"></ul>
         <button class="modal-close-btn" onclick="closeSuccessModal()">موافق</button>
     </div>
 </div>
 
 <div class="modal-overlay" id="error-modal">
     <div class="modal-content" style="border-color: #ff4d4d;">
-        <strong style="color: #ff4d4d; display: block; margin-bottom: 10px; font-size: 17px;">تنبيه النظام</strong>
-        <p id="error-modal-msg" style="margin: 0; color: black; line-height: 1.8; font-size: 15px; font-weight: bold;"></p>
+        <strong style="color: #ff4d4d; display: block; margin-bottom: 10px; font-size: 16px;">تنبيه النظام</strong>
+        <p id="error-modal-msg" style="margin: 0; color: black; line-height: 1.8; font-size: 14px; font-weight: bold;"></p>
         <button class="modal-close-btn" style="background-color: #ff4d4d;" onclick="closeErrorModal()">إغلاق</button>
     </div>
 </div>
 
+<!-- تسجيل الدخول للإدارة -->
 <div class="container" id="login-view">
     <h2 style="text-align: center; color: #fcc01a;">الإدارة</h2>
     <form id="loginForm">
@@ -610,157 +245,18 @@
     <p id="login-msg" style="text-align:center; color:#ff4d4d; font-weight:bold; margin-top: 15px;"></p>
 </div>
 
-<div id="admin-main-menu">
-    <div class="admin-menu-wrapper">
-        <h2 style="text-align: center; color: #fcc01a; margin-bottom: 5px;">لوحة تحكم الإدارة</h2>
-        <p style="text-align: center; color: #ddd; margin-top: 0; margin-bottom: 10px;" id="admin-main-menu-name"></p>
-        <div class="admin-menu-grid">
-            <div class="admin-menu-card" onclick="showAdminSection('lab')">
-                <span class="menu-icon">🔬</span>
-                <div class="menu-title">إدارة المعمل</div>
-                <div class="menu-desc">المواعيد، المجموعات، الفترات، الطلاب، الحضور، التاسكات</div>
-            </div>
-            <div class="admin-menu-card" onclick="showAdminSection('courses')">
-                <span class="menu-icon">📚</span>
-                <div class="menu-title">إدارة الدورات</div>
-                <div class="menu-desc">إضافة دورات جديدة وإدارة طلابها وحضورهم</div>
-            </div>
-            <div class="admin-menu-card" onclick="showAdminSection('certificates')">
-                <span class="menu-icon">🎓</span>
-                <div class="menu-title">إدارة الشهادات والخريجين</div>
-                <div class="menu-desc">الشهادات المستحقة وتسليم الخريجين</div>
-            </div>
-        </div>
-        <button class="sidebar-logout" style="margin-top: 25px; width: 100%;" onclick="logoutAdmin()">تسجيل الخروج</button>
-    </div>
-</div>
-
-<div id="course-management-view" style="max-width: 1100px; margin: auto;">
-    <div id="course-sub-menu">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="backToAdminMainMenu()">← القائمة الرئيسية</button>
-        <h2 style="text-align: center; color: #fcc01a;">إدارة الدورات</h2>
-        <div class="admin-menu-grid">
-            <div class="admin-menu-card" onclick="showCourseSubView('add')">
-                <span class="menu-icon">➕</span>
-                <div class="menu-title">إضافة دورة جديدة</div>
-                <div class="menu-desc">إنشاء دورة، تحديد سعرها، وكورساتها</div>
-            </div>
-            <div class="admin-menu-card" onclick="showCourseSubView('list')">
-                <span class="menu-icon">📖</span>
-                <div class="menu-title">الدورات الحالية</div>
-                <div class="menu-desc">عرض الدورات المسجلة وإدارة طلابها ورسومهم</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="add-diploma-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="showCourseSubView('menu')">← رجوع</button>
-        <h2 style="text-align: center; color: #fcc01a;">إضافة دورة جديدة</h2>
-        <div class="container" style="max-width: 650px;">
-            <label>اسم الدورة:</label>
-            <input type="text" id="new-dip-name" list="diploma-names-list" placeholder="مثال: دبلومة الروبوتات" oninput="autoFillDiplomaData()">
-            <datalist id="diploma-names-list"></datalist>
-
-            <label>سعر الدورة (إجمالي الرسوم):</label>
-            <input type="number" id="new-dip-price" placeholder="مثال: 1500" min="0">
-
-            <label>رقم الدورة:</label>
-            <input type="text" id="new-dip-number" placeholder="مثال: 101">
-
-            <label>بداية الدورة:</label>
-            <input type="date" id="new-dip-start-date" onchange="autoCalcDipEndDate()">
-
-            <label>نهاية الدورة (تلقائي - بعد شهرين، قابل للتعديل):</label>
-            <input type="date" id="new-dip-end-date">
-
-            <label style="margin-top: 15px; display: block;">الكورسات في الدورة:</label>
-            <div id="diploma-courses-container">
-                <div class="course-input-row">
-                    <input type="text" class="dip-course-name" placeholder="اسم الكورس">
-                    <input type="number" class="dip-course-lectures" placeholder="عدد المحاضرات" min="1" value="1">
-                    <button type="button" onclick="this.parentElement.remove()">X</button>
-                </div>
-            </div>
-            <button type="button" class="add-btn" onclick="addDiplomaCourseRow()">+ إضافة كورس آخر</button>
-            <button type="button" class="submit-btn" style="margin-top: 10px;" onclick="saveNewDiploma()">حفظ الدورة</button>
-        </div>
-    </div>
-
-    <div id="diplomas-list-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="showCourseSubView('menu')">← رجوع</button>
-        <h2 style="text-align: center; color: #fcc01a;">الدورات الحالية</h2>
-
-        <div id="diploma-groups-view">
-            <div id="diploma-groups-grid" class="diploma-grid"></div>
-        </div>
-
-        <div id="diploma-group-detail-view" style="display: none;">
-            <button class="back-btn" style="margin-bottom: 15px;" onclick="backToDiplomaGroups()">← رجوع لأسماء الدورات</button>
-            <h3 id="diploma-group-title" style="text-align: center; color: #fcc01a; margin-top: 0;"></h3>
-            <input type="text" id="diploma-search-input" class="search-diploma-input" placeholder="🔍 بحث باسم الدورة أو رقمها..." oninput="filterDiplomas(this.value)" autocomplete="off">
-            <div id="diplomas-grid" class="diploma-grid"></div>
-        </div>
-    </div>
-
-    <div id="diploma-detail-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="backToDiplomaGroupFromDetail()">← رجوع للدورات</button>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
-            <h2 id="diploma-detail-title" style="color: white; margin: 0;"></h2>
-            <button class="add-btn" style="width: auto; margin: 0; padding: 11px 22px;" onclick="openDipAddStudentModal()">➕ إضافة طالب</button>
-        </div>
-        <div id="diploma-courses-config-container" style="margin-bottom: 20px;"></div>
-        <div id="diploma-students-container"></div>
-    </div>
-</div>
-
-<div id="diploma-certificates-view" style="max-width: 1100px; margin: auto;">
-    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToAdminMainMenu()">← القائمة الرئيسية</button>
-    <h2 style="text-align: center; color: #fcc01a; margin-bottom: 20px;">🎓 إدارة الشهادات والخريجين</h2>
-
-    <div id="cert-groups-view">
-        <div id="cert-groups-grid" class="diploma-grid"></div>
-    </div>
-
-    <div id="cert-group-detail-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="backToCertGroups()">← رجوع لأسماء الدورات</button>
-        <h3 id="cert-group-title" style="text-align: center; color: #fcc01a; margin-top: 0; font-size: 24px;"></h3>
-        <div class="admin-menu-grid">
-            <div class="admin-menu-card" onclick="openCertSubView('due')">
-                <span class="menu-icon">📜</span>
-                <div class="menu-title">شهادات مستحقة</div>
-                <div class="menu-desc" id="cert-due-count-desc" style="font-size: 16px; color: #fcc01a; font-weight: bold;">الطلاب: 0</div>
-            </div>
-            <div class="admin-menu-card" onclick="openCertSubView('graduates')">
-                <span class="menu-icon">🎓</span>
-                <div class="menu-title">خريجين</div>
-                <div class="menu-desc" id="cert-graduates-count-desc" style="font-size: 16px; color: #28a745; font-weight: bold;">الطلاب: 0</div>
-            </div>
-        </div>
-    </div>
-
-    <div id="cert-due-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="backToCertGroupDetail()">← رجوع</button>
-        <h3 style="text-align: center; color: #fcc01a; margin-top: 0;">📜 شهادات مستحقة - <span id="cert-due-group-title"></span></h3>
-        <div id="cert-due-container"></div>
-    </div>
-
-    <div id="cert-graduates-view" style="display: none;">
-        <button class="back-btn" style="margin-bottom: 15px;" onclick="backToCertGroupDetail()">← رجوع</button>
-        <h3 style="text-align: center; color: #fcc01a; margin-top: 0;">🎓 خريجين - <span id="cert-graduates-group-title"></span></h3>
-        <div id="cert-graduates-container"></div>
-    </div>
-</div>
-
+<!-- نافذة اختيار الـ Tasks عند التحضير -->
 <div class="modal-overlay" id="task-modal" style="z-index: 1002;">
     <div class="modal-content" style="max-width: 400px; text-align: center;">
         <h3 style="color:#fcc01a; margin-top:0; border-bottom: 2px solid #ddd; padding-bottom: 10px;">تسجيل الـ Tasks</h3>
-        <p style="font-size: 15px; margin-bottom: 20px;">حضور كورس <b id="task-course-name" style="color:#3b1e5a;"></b><br>يرجى تحديد الـ Tasks المنجزة:</p>
+        <p style="font-size: 14px; margin-bottom: 20px;">حضور كورس <b id="task-course-name" style="color:#3b1e5a;"></b><br>يرجى تحديد الـ Tasks المنجزة:</p>
         <div id="task-checkboxes" style="display:flex; flex-wrap:wrap; justify-content:center; gap:10px; margin-bottom:20px; max-height: 200px; overflow-y: auto; padding: 10px; border: 1px solid #eee; border-radius: 5px;"></div>
         <button class="submit-btn" onclick="saveAttendanceWithTasks()">تأكيد وحفظ</button>
         <button class="back-btn" style="width:100%; margin-top:10px;" onclick="cancelTaskSelection()">إلغاء الحضور</button>
     </div>
 </div>
 
+<!-- لوحة الإدارة -->
 <div id="admin-view" style="max-width: 1100px; margin: auto;">
     <div class="dashboard-layout">
         <div class="sidebar">
@@ -772,63 +268,48 @@
                 </div>
                 <div id="submissions-dropdown"></div>
             </div>
+
             <div id="admin-name-display"></div>
-            <button class="sidebar-btn" style="background:#666; margin-bottom: 5px;" onclick="backToAdminMainMenu()">← القائمة الرئيسية</button>
+            
             <div style="position: relative; margin-bottom: 8px;">
-                <input type="text" id="search-student" placeholder="بحث باسم أو هاتف..." oninput="handleSearch(this.value)" autocomplete="off" style="margin: 0; border: 2px solid #fcc01a; background: #fff; color: #000; font-weight: bold; padding: 10px;">
+                <input type="text" id="search-student" placeholder="بحث باسم أو هاتف..." oninput="handleSearch(this.value)" autocomplete="off" style="margin: 0; border: 2px solid #fcc01a; background: #fff; color: #000; font-weight: bold; padding: 8px;">
                 <div id="search-suggestions"></div>
             </div>
+
             <button class="sidebar-btn active" id="btn-nav-dates" onclick="switchDashboardView('dates')">سجل الأيام</button>
             <button class="sidebar-btn" id="btn-nav-groups" onclick="switchDashboardView('groups')">إدارة المجموعات</button>
+            <button class="sidebar-btn" id="btn-nav-certificates" onclick="switchDashboardView('certificates')">إدارة الشهادات</button>
             <button class="sidebar-btn" id="btn-nav-schedule" onclick="switchDashboardView('schedule')">جدول المواعيد</button>
             <button class="sidebar-btn" id="btn-nav-periods" onclick="switchDashboardView('periods')">الفترات الزمنية</button>
+            <button class="sidebar-btn" id="btn-nav-blocked" onclick="switchDashboardView('blocked')">الطلاب المقيدين</button>
             <button class="sidebar-btn" id="btn-nav-sysSettings" onclick="switchDashboardView('sysSettings')">إعدادات النظام</button>
             <button class="sidebar-logout" onclick="logoutAdmin()">تسجيل الخروج</button>
         </div>
 
         <div class="main-content">
+            <!-- سجل الأيام -->
             <div id="view-dates" class="view-section active">
                 <div id="dates-list">
                     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                         <h3 style="color: white; margin: 0;">الأيام المسجلة</h3>
                     </div>
-                    <div id="records-counter" style="text-align: center; color: #fcc01a; font-weight: bold; margin-bottom: 15px; font-size: 16px; background: rgba(255,255,255,0.1); padding: 7px; border-radius: 5px;"></div>
-
-                    <div class="calendar-controls">
-                        <button class="cal-nav-btn" onclick="navigateCalendar(-1)" title="الشهر السابق">‹</button>
-                        <div class="cal-selectors">
-                            <select id="cal-month-select" onchange="renderCalendar()"></select>
-                            <select id="cal-year-select" onchange="renderCalendar()"></select>
-                        </div>
-                        <button class="cal-nav-btn" onclick="navigateCalendar(1)" title="الشهر التالي">›</button>
-                    </div>
-                    <div class="calendar-actions">
-                        <button class="cal-today-btn" onclick="goToToday()">📍 اليوم</button>
-                        <button class="delete-btn" style="padding: 10px 18px; font-size: 14px;" onclick="deleteAllInCurrentMonth()">🗑️ حذف الشهر</button>
-                    </div>
-                    <div class="calendar-grid" style="margin-bottom: 5px;">
-                        <div class="calendar-day-header">الأحد</div>
-                        <div class="calendar-day-header">الإثنين</div>
-                        <div class="calendar-day-header">الثلاثاء</div>
-                        <div class="calendar-day-header">الأربعاء</div>
-                        <div class="calendar-day-header">الخميس</div>
-                        <div class="calendar-day-header">الجمعة</div>
-                        <div class="calendar-day-header">السبت</div>
-                    </div>
-                    <div id="calendar-days-container" class="calendar-grid"></div>
+                    <div id="records-counter" style="text-align: center; color: #fcc01a; font-weight: bold; margin-bottom: 15px; font-size: 15px; background: rgba(255,255,255,0.1); padding: 5px; border-radius: 5px;"></div>
+                    <div id="dates-container"></div>
                 </div>
+
                 <div id="periods-list" style="display: none;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                         <button class="back-btn" style="margin: 0;" onclick="backToDates()">الرجوع</button>
-                        <button class="delete-btn" style="margin: 0; padding: 11px 16px; font-size: 14px;" onclick="deleteAllInDay()">حذف اليوم</button>
+                        <button class="delete-btn" style="margin: 0; padding: 10px 15px; font-size: 14px;" onclick="deleteAllInDay()">حذف اليوم</button>
                     </div>
                     <h3 id="selected-date-title" style="text-align: center; color: #fcc01a; margin-top: 0;"></h3>
                     <div id="periods-container"></div>
                 </div>
+
                 <div id="period-details" style="display: none;">
                     <div style="display: flex; justify-content: space-between; margin-bottom: 15px;">
                         <button class="back-btn" style="margin: 0;" onclick="backToPeriods()">الرجوع</button>
-                        <button class="delete-btn" style="margin: 0; padding: 11px 16px; font-size: 14px;" onclick="deleteAllInPeriod()">حذف الفترة</button>
+                        <button class="delete-btn" style="margin: 0; padding: 10px 15px; font-size: 14px;" onclick="deleteAllInPeriod()">حذف الفترة</button>
                     </div>
                     <h3 id="selected-period-title" style="text-align: center; color: #fcc01a; margin-top: 0;"></h3>
                     <div style="overflow-x: auto;">
@@ -842,31 +323,91 @@
                 </div>
             </div>
 
+            <!-- إدارة المجموعات وإضافة الطلاب -->
             <div id="view-groups" class="view-section">
-                <div id="lab-groups-view">
-                    <h3 style="color: white; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-top: 0;">إدارة المجموعات</h3>
-                    <div id="lab-groups-grid" class="diploma-grid"></div>
-                </div>
-
-                <div id="lab-group-detail-view" style="display: none;">
-                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToLabGroups()">← رجوع لأسماء الدورات</button>
-                    <h3 id="lab-group-title" style="text-align: center; color: #fcc01a; margin-top: 0;"></h3>
-                    <input type="text" id="lab-group-search-input" class="search-diploma-input" placeholder="🔍 بحث باسم الدورة أو رقمها..." oninput="filterLabGroups(this.value)" autocomplete="off">
-                    <div id="lab-groups-copies-grid" class="diploma-grid"></div>
-                </div>
-
-                <div id="lab-group-copy-detail-view" style="display: none;">
-                    <button class="back-btn" style="margin-bottom: 15px;" onclick="backToLabGroupFromDetail()">← رجوع للدورات</button>
-                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
-                        <h2 id="lab-group-copy-title" style="color: white; margin: 0;"></h2>
-                        <button id="export-excel-btn" class="add-btn" style="width: auto; background-color: #28a745; margin: 0; display: none;" onclick="exportLabGroupToExcel()">تصدير إكسيل 📊</button>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
+                    <h3 style="color: white; margin: 0;">إدارة المجموعات</h3>
+                    <div style="display: flex; gap: 10px; align-items: center;">
+                        <button id="reset-group-btn" style="background:none; border:none; cursor:pointer; font-size:20px; padding:0; display:none; filter: grayscale(100%) brightness(200%);" title="تصفير صلاحية المجموعة" onclick="resetSpecificGroupTenure()">🕒</button>
+                        <button id="delete-group-btn" class="delete-btn" style="display: none; padding: 10px; margin: 0;" onclick="deleteEntireGroup()">حذف المجموعة 🗑️</button>
+                        <button id="export-excel-btn" class="add-btn" style="width: auto; background-color: #28a745; margin: 0; display: none;" onclick="exportGroupToExcel()">تصدير إكسيل 📊</button>
                     </div>
-                    <div id="lab-group-copy-students-container"></div>
                 </div>
 
-                <input type="hidden" id="group-select" value="">
+                <div class="manual-add-box">
+                    <h4 style="margin-top: 0; color: #fcc01a;">إدراج طالب يدوياً</h4>
+                    <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+                        <input type="text" id="manual-name" placeholder="اسم الطالب" style="flex: 1; min-width: 150px;">
+                        <input type="tel" id="manual-phone" placeholder="رقم الهاتف" style="flex: 1; min-width: 120px;">
+                        <input type="text" id="manual-group" placeholder="المجموعة" style="flex: 1; min-width: 80px;">
+                        <button class="add-btn" style="flex: 1; min-width: 100px; margin:0;" onclick="manualAddStudent()">حفظ الطالب</button>
+                    </div>
+                </div>
+                
+                <label>استعراض المجموعة:</label>
+                <select id="group-select" onchange="renderGroupStudents(this.value)">
+                    <option value="" disabled selected>اختر المجموعة</option>
+                </select>
+                <div id="group-total-count" style="color: #fcc01a; font-weight: bold; margin-bottom: 15px; display: none;"></div>
+                
+                <div style="overflow-x: auto;">
+                    <table id="groupDataTable" style="display: none; min-width: 600px;">
+                        <thead>
+                            <tr>
+                                <th>الاسم</th>
+                                <th>الهاتف</th>
+                                <th>المجموعة</th>
+                                <th>Classic</th>
+                                <th>PLC</th>
+                                <th>Drive</th>
+                                <th>إجراء</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
             </div>
 
+            <!-- إدارة الشهادات -->
+            <div id="view-certificates" class="view-section">
+                <h3 style="color: white; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-top: 0;">إدارة الشهادات</h3>
+                <div id="certificates-sections-container"></div>
+            </div>
+
+            <!-- قسم الطلاب المقيدين -->
+            <div id="view-blocked" class="view-section">
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; margin-top: 0;">
+                    <h3 id="blocked-view-title" style="color: white; margin: 0; padding-top: 5px;">الطلاب المقيدين</h3>
+                    <div style="display: flex; flex-direction: column; gap: 8px;">
+                        <button id="sweep-btn" onclick="runAutoSweep(false)" style="background: none; border: none; font-size: 26px; cursor: pointer; transition: transform 0.2s;" title="فحص النظام وتحديث القائمة آلياً">🔍</button>
+                        <button id="history-toggle-btn" onclick="toggleBlockedHistory()" style="background: none; border: none; font-size: 26px; cursor: pointer; transition: transform 0.2s;" title="سجل رفع القيد">📜</button>
+                    </div>
+                </div>
+
+                <div id="blocked-actions" style="margin-bottom: 10px; display: flex; justify-content: flex-end;">
+                    <button class="delete-btn" style="margin: 0; padding: 8px 15px;" onclick="unblockAll()">رفع القيد عن الجميع ✔</button>
+                </div>
+                
+                <div id="history-actions" style="margin-bottom: 10px; display: none; justify-content: flex-end;">
+                    <button class="delete-all-btn" style="margin: 0; padding: 8px 15px;" onclick="clearAllBanHistory()">حذف سجل الجميع 🗑️</button>
+                </div>
+
+                <div id="blocked-table-container" style="overflow-x: auto;">
+                    <table id="blockedTable">
+                        <thead><tr><th>الاسم</th><th>رقم الهاتف</th><th>م</th><th>سبب القيد</th><th>تاريخ القيد</th><th>إجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+
+                <div id="history-table-container" style="display: none; overflow-x: auto;">
+                    <table id="historyTable">
+                        <thead><tr><th>الاسم</th><th>رقم الهاتف</th><th>سبب القيد السابق</th><th>تاريخ رفع القيد</th><th>مرات القيد</th><th>إجراء</th></tr></thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- جدول المواعيد الأساسي -->
             <div id="view-schedule" class="view-section">
                 <h3 style="color: white; margin-top: 0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">جدول الأيام</h3>
                 <select id="schedule-day-select" onchange="renderScheduleDay(this.value)">
@@ -876,14 +417,17 @@
                 <div id="schedule-slots-container" style="margin-top: 20px;"></div>
             </div>
 
+            <!-- تعديل الفترات -->
             <div id="view-periods" class="view-section">
                 <h3 style="color: white; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-top: 0;">الفترات الزمنية</h3>
                 <div id="edit-periods-container" style="margin-top: 20px;"></div>
                 <button class="add-btn" onclick="savePeriods()">تحديث الفترات</button>
             </div>
 
+            <!-- إعدادات النظام -->
             <div id="view-sysSettings" class="view-section">
                 <h3 style="color: white; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-top: 0;">إعدادات النظام</h3>
+                
                 <div class="settings-card">
                     <h4>التحكم في الفترات الجارية</h4>
                     <div class="toggle-row" style="background: none; padding: 0; margin-bottom: 10px;">
@@ -891,60 +435,106 @@
                         <button id="btn-block-late" class="toggle-btn" onclick="toggleBlockLateBooking()"></button>
                     </div>
                     <div id="late-offset-container" style="display: none; border-top: 1px dashed #ddd; padding-top: 10px;">
-                        <label style="font-size: 14px;">مدة الإغلاق قبل الفترة:</label>
+                        <label style="font-size: 13px;">مدة الإغلاق قبل الفترة:</label>
                         <input type="number" id="late-booking-offset" value="0" min="0" step="0.5" style="margin-bottom: 0;">
                     </div>
                 </div>
+
+                <div class="settings-card">
+                    <h4>إدارة أعمار المجموعات</h4>
+                    <div style="display: flex; flex-direction: column; gap: 10px;">
+                        <span style="font-size: 13px;">سيقوم هذا الإجراء ببدء دورة صلاحية جديدة لجميع المجموعات من تاريخ اليوم.</span>
+                        <button class="delete-all-btn" style="margin: 0; background-color: #666; width: 100%;" onclick="resetAllGroupsTenure()">تصفير صلاحية جميع المجموعات</button>
+                    </div>
+                </div>
+
                 <div id="ban-rules-container"></div>
+                <div id="courses-settings-container"></div>
                 <div id="support-settings-container"></div>
                 <div id="messages-settings-container"></div>
-                <div class="settings-card" id="lab-tasks-settings-card">
-                    <h4>إدارة تاسكات المعمل</h4>
-                    <p style="font-size: 14px; color: #ddd; margin: 0 0 15px 0;">اختر الدورة، ثم حدد عدد التاسكات لكل كورس. الأرقام دي هتطبق على كل نسخ الدورة اللي بنفس الاسم.</p>
-                    <label>اختر الدورة:</label>
-                    <select id="lab-tasks-diploma-select" onchange="renderLabTasksCourseInputs()">
-                        <option value="">-- اختر دورة --</option>
-                    </select>
-                    <div id="lab-tasks-course-inputs" style="margin-top: 15px;"></div>
-                </div>
+                
                 <button class="add-btn" style="margin-top: 15px;" onclick="saveSystemSettings()">حفظ كافة إعدادات النظام</button>
             </div>
+
         </div>
     </div>
 </div>
 
+<!-- تقرير الطالب والمهام -->
 <div class="modal-overlay" id="report-modal">
     <div class="modal-content" style="max-width: 650px; position:relative;">
+        
+        <!-- القسم العلوي: البيانات + زر الإعدادات -->
         <div style="display:flex; justify-content:space-between; align-items:flex-start; border-bottom: 2px solid #fcc01a; padding-bottom:10px; margin-bottom: 15px;">
+            <!-- بيانات الطالب -->
             <div>
-                <strong style="color: #3b1e5a; font-size: 19px;" id="report-name"></strong>
-                <div style="margin-top: 10px; font-size: 15px; color: black; line-height: 1.8;">
+                <strong style="color: #3b1e5a; font-size: 18px;" id="report-name"></strong>
+                <div style="margin-top: 10px; font-size: 14px; color: black; line-height: 1.8;">
                     <div>رقم الهاتف: <b id="report-phone" style="color: #3b1e5a; font-family: Tahoma;"></b></div>
                     <div>رقم المجموعة: <b id="report-group" style="color: #3b1e5a; font-family: Tahoma;"></b></div>
                     <div>إجمالي التسجيلات: <b id="report-total" style="color: #3b1e5a;"></b></div>
                     <div>تاريخ آخر حضور: <b id="report-last"></b></div>
                     <div>مرات الغياب: <b id="report-absent" style="color: red;"></b></div>
                     <div style="font-weight: bold; color: #cc0000; font-size: 14px; margin-top: 2px;" id="report-absence-cycle"></div>
+                    <div style="margin-top:5px; padding-top:5px; border-top:1px dashed #ddd; font-size: 13px;">عمر المجموعة: <b id="report-group-tenure" style="color: #28a745;"></b></div>
                     <div id="report-vip-status" style="margin-top:5px; font-size: 20px; display:none; cursor:help;" title="خريج (VIP)">⭐</div>
                 </div>
             </div>
+            
+            <!-- زر قائمة الإعدادات العلوية اليسرى -->
+            <div style="position:relative;">
+                <button onclick="toggleExtraSettings()" style="background: none; border: none; font-size: 26px; cursor: pointer;" title="ملاحظات وتسليم الأسلاك">⚙️</button>
+                
+                <div id="extra-settings-panel" style="display: none; position: absolute; left: 0; top: 40px; background: white; border: 2px solid #fcc01a; border-radius: 8px; padding: 15px; width: 260px; box-shadow: 0 4px 15px rgba(0,0,0,0.3); z-index: 1000; text-align:right;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #ddd; padding-bottom: 10px; margin-bottom: 10px;">
+                        <strong style="font-size: 14px; color: #3b1e5a;">Wires:</strong>
+                        <div style="display: flex; align-items: center;">
+                            <span id="wire-status-text" style="font-weight: bold; color: #28a745; font-size: 14px; cursor: pointer; display: none;" onclick="promptWireRevert()">Done</span>
+                            <input type="checkbox" id="wire-checkbox" style="width: 18px; height: 18px; accent-color: #28a745; margin: 0; cursor: pointer;" onchange="handleWireChange(this.checked)">
+                        </div>
+                    </div>
+                    
+                    <strong style="font-size: 14px; color: #3b1e5a; display: block; margin-bottom: 5px;">ملاحظات الإدارة:</strong>
+                    <div id="notes-list-container" style="max-height: 150px; overflow-y: auto; margin-bottom: 10px;"></div>
+                    <div style="display:flex; gap:5px; margin-bottom: 10px;">
+                        <input type="text" id="new-note-input" placeholder="أضف ملاحظة جديدة..." style="margin:0; padding:5px; flex:1; font-size:12px; border:1px solid #ccc; border-radius:3px; font-family: Tahoma;">
+                        <button onclick="saveNewNote()" style="background:#28a745; color:white; border:none; padding:5px 12px; border-radius:3px; cursor:pointer; font-weight:bold;">+</button>
+                    </div>
+
+                    <div style="border-top: 1px solid #ddd; margin-top: 10px; padding-top: 10px;">
+                        <strong style="font-size: 14px; color: #3b1e5a; display: block; margin-bottom: 5px;">تصفير العدادات:</strong>
+                        <div style="display: flex; flex-direction: column; gap: 5px;">
+                            <button onclick="resetStudentInactivity()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:6px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:12px; transition:0.2s;" onmouseover="this.style.background='#e6e6e6'" onmouseout="this.style.background='#f4f4f4'">تصفير الانقطاع</button>
+                            <button onclick="resetStudentAbsence()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:6px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:12px; transition:0.2s;" onmouseover="this.style.background='#e6e6e6'" onmouseout="this.style.background='#f4f4f4'">تصفير الغياب</button>
+                            <button onclick="resetStudentTenure()" style="background:#f4f4f4; color:#3b1e5a; border:1px solid #ccc; padding:6px; font-weight:bold; cursor:pointer; border-radius:3px; font-size:12px; transition:0.2s;" onmouseover="this.style.background='#e6e6e6'" onmouseout="this.style.background='#f4f4f4'">تجديد المجموعة</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
-        <strong style="color: #000; display: block; margin-bottom: 10px; font-size: 15px;">سجل المواعيد:</strong>
+        
+        <strong style="color: #000; display: block; margin-bottom: 10px; font-size: 14px;">سجل المواعيد:</strong>
         <div style="overflow-x: auto; max-height: 200px; border: 1px solid #ddd; border-radius: 5px; margin-bottom: 15px;">
-            <table style="width: 100%; font-size: 14px; margin-top: 0; border-radius: 0;">
+            <table style="width: 100%; font-size: 13px; margin-top: 0; border-radius: 0;">
                 <thead>
                     <tr><th style="padding: 8px;">الكورس</th><th style="padding: 8px;">التاريخ</th><th style="padding: 8px;">الوقت</th><th style="padding: 8px;">Tasks</th><th style="padding: 8px;">الحالة</th></tr>
                 </thead>
                 <tbody id="report-tbody"></tbody>
             </table>
         </div>
-        <strong style="color: #000; display: block; margin-bottom: 10px; font-size: 15px; border-top: 2px solid #ddd; padding-top: 10px;">سجل الـ Tasks المنجزة:</strong>
+
+        <strong style="color: #000; display: block; margin-bottom: 10px; font-size: 14px; border-top: 2px solid #ddd; padding-top: 10px;">سجل الـ Tasks المنجزة:</strong>
         <div id="lms-container" style="margin-bottom: 15px;"></div>
+        
+        <div style="display: flex; gap: 10px; margin-bottom: 10px;">
+            <button id="block-btn" style="flex: 1; padding: 12px; font-size: 15px; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;"></button>
+            <button id="undo-action-btn" style="display: none; padding: 12px 20px; font-size: 18px; background-color: #666; color: white; border: none; border-radius: 5px; font-weight: bold; cursor: pointer;" title="تراجع عن الإجراء"></button>
+        </div>
         <button class="modal-close-btn" style="background-color: #3b1e5a; margin-top: 0;" onclick="closeReportModal()">إغلاق التقرير</button>
     </div>
 </div>
+
 <script>
-    /* ============ Firebase Config ============ */
     const firebaseConfig = {
       apiKey: "AIzaSyDEl0FbR_gjtOwRxOBS8_YWN_4HfyzyddU",
       authDomain: "robotagy-1f557.firebaseapp.com",
@@ -958,7 +548,6 @@
     const database = firebase.database();
     const auth = firebase.auth();
 
-    /* ============ Helpers ============ */
     const normalizePhone = (str) => String(str || '').replace(/[\s\u200B-\u200D\uFEFF]/g, '').trim().replace(/[٠-٩]/g, d => "٠١٢٣٤٥٦٧٨٩".indexOf(d));
     const extractPureNumber = (str) => normalizePhone(str).replace(/\D/g, '');
     const isStrictlyNumber = (str) => { let s = extractPureNumber(str); return s.length > 0; };
@@ -1816,11 +1405,13 @@
                     });
                 });
 
-                // فلترة الدورات الشغالة حالياً فقط
+                // فلترة الدورات الشغالة حالياً + التأكد من تطابق رقم المجموعة
                 const todayStr = getLocalDateString();
                 let activeDiplomaMatches = diplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
                     if (!dip) return false;
+                    // التحقق من تطابق رقم المجموعة مع رقم الدورة
+                    if (extractPureNumber(dip.number) !== group) return false;
                     const labStart = dip.start_date;
                     const labEnd = getEndDateLab(dip);
                     if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
@@ -1828,7 +1419,7 @@
                 });
 
                 if (diplomaMatches.length > 0 && activeDiplomaMatches.length === 0) {
-                    showErrorModal("عفواً، أنت غير مسجل في أي دورة شغالة حالياً أو أن دورتك انتهت. يرجى مراجعة الإدارة.");
+                    showErrorModal("رقم المجموعة غير مطابق للدورة المسجل بها. راجع الإدارة.");
                     return;
                 }
 
@@ -1839,7 +1430,8 @@
                 let matchingRecords = allSt.filter(s =>
                     extractPureNumber(s.phone) === phone &&
                     !s.canceled &&
-                    s.date && s.date !== "بدون موعد"
+                    s.date && s.date !== "بدون موعد" &&
+                    extractPureNumber(s.group) === group // فلترة المجموعة للسجلات أيضاً
                 );
 
                 if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
@@ -1903,7 +1495,7 @@
         document.getElementById('student-view').style.display = 'block';
         document.getElementById('student-login-phone').value = '';
         document.getElementById('student-login-group').value = '';
-        scheduleStudentOffline();
+        // تم إزالة scheduleStudentOffline() هنا لتجنب قطع الاتصال فوراً عند الخروج
     };
 
     function renderStudentDashboard() {
@@ -4639,39 +4231,22 @@
 
     async function renderPdfPageToBase64(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 1.0 });
+        const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.height = viewport.height;
         canvas.width = viewport.width;
-        await page.render({ canvasContext: ctx, viewport }).promise;
-        return canvas.toDataURL('image/jpeg', 0.6);
+        await page.render({ canvasContext: ctx, viewport: viewport }).promise;
+        return canvas.toDataURL('image/jpeg', 0.75);
     }
 
     window.savePdfConfigData = async function() {
         if (!currentEditingPdfDiplomaId || !currentEditingPdfCourseName) return;
-        const diplomaId = currentEditingPdfDiplomaId;
-        const courseName = currentEditingPdfCourseName;
-
-        try {
-            const snap = await database.ref('lab_course_tasks').get();
-            labCourseTasks = snap.exists() ? snap.val() : {};
-        } catch(e) {
-            console.warn('تعذّر تحديث lab_course_tasks:', e);
-        }
-
-        const dip = allDiplomas[diplomaId];
-        const diplomaName = dip ? (dip.name || '') : '';
-        const dynamicTaskCount = findCourseTasksSmart(diplomaName, courseName);
-
-        if (dynamicTaskCount === 0) {
-            alert('عدد التاسكات = 0. حدد العدد من "إدارة تاسكات المعمل" أولاً.');
-            return;
-        }
-
-        const btn = document.getElementById('save-pdf-config-btn');
-        const fileInput = document.getElementById('pdf-file-input');
-        const file = fileInput.files[0];
+        let courseKey = currentEditingPdfCourseName;
+        let diplomaId = currentEditingPdfDiplomaId;
+        let btn = document.getElementById('save-pdf-config-btn');
+        let fileInput = document.getElementById('pdf-file-input');
+        let file = fileInput.files[0];
 
         btn.disabled = true;
         btn.innerText = 'جاري المعالجة والحفظ...';
@@ -4687,41 +4262,36 @@
                 pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             }
 
-            const configKey = makeCourseConfigKey(diplomaId, courseName);
+            const configKey = makeCourseConfigKey(diplomaId, courseKey);
             const oldCfg = diplomaCourseConfig[configKey] || {};
             const existingPdfTasks = oldCfg.pdfTasks || {};
             const updatedPdfTasks = {};
 
-            Object.keys(existingPdfTasks).forEach(k => {
-                const num = parseInt(String(k).replace('task_', ''));
-                if (!isNaN(num) && num > dynamicTaskCount) {
-                    updatedPdfTasks[k] = existingPdfTasks[k];
-                }
-            });
-
-            for (let i = 1; i <= dynamicTaskCount; i++) {
-                const tKey = `task_${i}`;
-                const pageEl = document.getElementById(`pdf-page-${i}`);
-                const commentEl = document.getElementById(`pdf-comment-${i}`);
-                const subEl = document.getElementById(`pdf-sub-${i}`);
+            // مسح القديم وحفظ الجديد لضمان توفير المساحة
+            for (let i = 1; i <= 30; i++) {
+                let tKey = `task_${i}`;
+                let pageEl = document.getElementById(`pdf-page-${i}`);
+                let commentEl = document.getElementById(`pdf-comment-${i}`);
+                let subEl = document.getElementById(`pdf-sub-${i}`);
                 if (!pageEl || !commentEl || !subEl) continue;
 
-                const pageStr = (pageEl.value || '').trim();
-                const commentStr = (commentEl.value || '').trim();
-                const allowSub = subEl.checked;
-                const oldData = existingPdfTasks[tKey] || {};
-
+                let pageStr = (pageEl.value || '').trim();
+                let commentStr = (commentEl.value || '').trim();
+                let allowSub = subEl.checked;
+                let oldData = existingPdfTasks[tKey] || {};
+                
+                // عند رفع ملف PDF جديد يتم مسح الصور القديمة أوتوماتيك لتفريغ المساحة وإعادة توليد المحدد فقط
                 let imagesArr = pdfDoc ? [] : (oldData.images || []);
-                const isDirectUrl = /https?:\/\//i.test(pageStr);
+                let isDirectUrl = /https?:\/\//i.test(pageStr);
 
                 if (isDirectUrl || !pageStr) {
                     imagesArr = [];
                 } else if (pdfDoc && pageStr) {
-                    const targetPages = parsePageNumbers(pageStr, pdfDoc.numPages);
+                    let targetPages = parsePageNumbers(pageStr, pdfDoc.numPages);
                     if (targetPages.length > 0) {
                         imagesArr = [];
-                        for (const pNum of targetPages) {
-                            const base64Img = await renderPdfPageToBase64(pdfDoc, pNum);
+                        for (let pNum of targetPages) {
+                            let base64Img = await renderPdfPageToBase64(pdfDoc, pNum);
                             imagesArr.push(base64Img);
                         }
                     }
@@ -4740,15 +4310,15 @@
             await database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`).set(updatedPdfTasks);
             if (!diplomaCourseConfig[configKey]) diplomaCourseConfig[configKey] = {};
             diplomaCourseConfig[configKey].pdfTasks = updatedPdfTasks;
-
-            alert(`تم حفظ ومعالجة بيانات ${dynamicTaskCount} تاسك بنجاح ✅`);
+            
+            alert('تم حفظ ومعالجة بيانات الـ Tasks بنجاح.');
             closePdfConfigModal();
         } catch (err) {
             alert('حدث خطأ أثناء المعالجة: ' + err.message);
-        } finally {
-            btn.disabled = false;
-            btn.innerText = 'حفظ ومعالجة الملف';
         }
+
+        btn.disabled = false;
+        btn.innerText = 'حفظ ومعالجة الملف';
     };
 
     /* ============ SYSTEM SETTINGS UI ============ */
