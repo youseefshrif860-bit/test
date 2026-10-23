@@ -1999,7 +1999,7 @@
 
         let attendedCount = currentStudentRecords.filter(r => r.attended).length;
         let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time)).length;
-        let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
+        let upcomingRecs = currentStudentRecords.filter(r => !r.canceled && !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
         let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
