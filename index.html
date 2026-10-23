@@ -1144,9 +1144,38 @@
         return `${diplomaId}_${courseNameToKey(courseName)}`;
     }
 
+    // ✅ FIXED: fallback صح بالاسم مع حماية من IDs فيها underscore
     function getCourseConfig(diplomaId, courseName) {
         const key = makeCourseConfigKey(diplomaId, courseName);
-        const cfg = diplomaCourseConfig[key] || {};
+        let cfg = diplomaCourseConfig[key];
+
+        // لو الإعداد مش موجود للـ diplomaId ده، دوّر على دورة تانية بنفس الاسم
+        if (!cfg) {
+            const dip = allDiplomas[diplomaId];
+            const diplomaName = dip ? (dip.name || '').trim().toLowerCase() : '';
+            const targetCourseKey = courseNameToKey(courseName);
+
+            if (diplomaName && targetCourseKey) {
+                outer:
+                for (const existingKey of Object.keys(diplomaCourseConfig)) {
+                    for (const existingDipId of Object.keys(allDiplomas)) {
+                        const prefix = existingDipId + '_';
+                        if (!existingKey.startsWith(prefix)) continue;
+                        const existingCourseKey = existingKey.substring(prefix.length);
+                        if (existingCourseKey !== targetCourseKey) continue;
+
+                        const existingDip = allDiplomas[existingDipId];
+                        if (!existingDip) continue;
+                        if ((existingDip.name || '').trim().toLowerCase() === diplomaName) {
+                            cfg = diplomaCourseConfig[existingKey];
+                            break outer;
+                        }
+                    }
+                }
+            }
+        }
+
+        cfg = cfg || {};
         return {
             limit: parseInt(cfg.limit) || 8,
             exam: cfg.exam === true,
@@ -2114,10 +2143,22 @@
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
-        const enrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
+        // ✅ الفلتر الأقوى: التاسكات بتظهر بس للكورسات اللي عندها مواعيد قادمة
+        const upcomingCourseKeys = new Set();
+        upcomingRecs.forEach(r => {
+            upcomingCourseKeys.add(courseNameToKey(r.course));
+        });
+
+        const allEnrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
+        // فلترة: بس الكورسات اللي عندها موعد قادم
+        const enrolledCourses = allEnrolledCourses.filter(enr => upcomingCourseKeys.has(enr.courseKey));
 
         if (enrolledCourses.length === 0) {
-            html += `<div class="empty-state">لا توجد كورسات مسجل بها</div>`;
+            if (allEnrolledCourses.length > 0) {
+                html += `<div class="empty-state">لا توجد تاسكات قادمة حالياً (مفيش مواعيد قادمة للكورسات المسجل بها) 🎉</div>`;
+            } else {
+                html += `<div class="empty-state">لا توجد كورسات مسجل بها</div>`;
+            }
         } else {
             let tasksHtml = '';
             enrolledCourses.forEach(enr => {
@@ -2127,7 +2168,7 @@
                 const cfg = getCourseConfig(diplomaId, courseName);
                 const upcomingLimit = cfg.upcomingLimit;
 
-                // ✅ 1) بناء مجموعة التاسكات المكتملة من المصدرين (student_progress + students/{id}/tasks)
+                // 1) بناء مجموعة التاسكات المكتملة من المصدرين
                 const completedSet = new Set();
 
                 // المصدر الأول: التسجيل اليدوي في student_progress
@@ -2135,7 +2176,7 @@
                     if (courseProgress[`task_${i}`]) completedSet.add(i);
                 }
 
-                // المصدر الثاني: تسجيل الحضور من students/{id}/tasks (مودال 📝)
+                // المصدر الثاني: تسجيل الحضور من students/{id}/tasks
                 (currentStudentRecords || []).forEach(rec => {
                     if (rec.attended !== true || !rec.tasks || rec.canceled) return;
                     if (courseNameToKey(rec.course) !== courseKey) return;
@@ -2150,11 +2191,11 @@
                     });
                 });
 
-                // ✅ 2) نلاقي آخر تاسك اتعمل
+                // 2) نلاقي آخر تاسك اتعمل
                 let lastCompletedIndex = 0;
                 completedSet.forEach(i => { if (i > lastCompletedIndex) lastCompletedIndex = i; });
 
-                // ✅ 3) نبدأ العرض من اللي بعد آخر تاسك اتعمل (Task 1 → آخر تاسك)
+                // 3) نبدأ العرض من اللي بعد آخر تاسك اتعمل
                 let shownCount = 0;
                 for (let i = lastCompletedIndex + 1; i <= totalTasks; i++) {
                     if (upcomingLimit > 0 && shownCount >= upcomingLimit) break;
@@ -3343,7 +3384,7 @@
         renderLabGroupCopies();
     };
 
-    // ✅ جدول إدارة المجموعات: عمود Wires + جمع التاسكات من المصدرين
+    // جدول إدارة المجموعات: عمود Wires + جمع التاسكات من المصدرين
     async function renderLabDipCopyStudents() {
         const container = document.getElementById('lab-group-copy-students-container');
         const dip = allDiplomas[currentLabDipId];
@@ -3394,7 +3435,6 @@
                 const stProg = progressMap[purePhone] || {};
                 const bgColor = index % 2 === 0 ? '#ffffff' : '#f9f9f9';
 
-                // ✅ بيانات عمود Wires
                 const wiresChecked = st.wires === true;
                 const wiresMeta = st.wires_meta || null;
                 const wiresTooltip = wiresChecked && wiresMeta
@@ -3407,7 +3447,6 @@
                     <td onclick="openWhatsApp('${st.phone}')" style="padding: 6px; border: 1px solid #ddd; font-family: Tahoma; cursor: pointer; color: inherit; text-decoration: none;" title="مراسلة عبر واتساب">${st.phone || ''}</td>
                     <td style="padding: 6px; border: 1px solid #ddd;">${st.college || '-'}</td>
 
-                    <!-- ✅ عمود Wires -->
                     <td style="padding: 6px; border: 1px solid #ddd; text-align: center; background: ${wiresChecked ? '#e8f5e9' : '#fff'};">
                         <input type="checkbox" class="attendance-check"
                             ${wiresChecked ? 'checked' : ''}
@@ -3461,7 +3500,7 @@
         document.getElementById('export-excel-btn').style.display = keys.length > 0 ? 'block' : 'none';
     }
 
-    // ✅ دالة toggle عمود Wires
+    // دالة toggle عمود Wires
     window.toggleStudentWires = async function(dipId, studentId, isChecked) {
         try {
             const base = `new_system/diploma_students/${dipId}/${studentId}`;
@@ -3487,7 +3526,6 @@
         if (!table) return;
         const clone = table.cloneNode(true);
 
-        // ✅ تحويل الـ checkboxes لرموز نصية قبل التصدير
         clone.querySelectorAll('input[type="checkbox"]').forEach(cb => {
             const span = document.createElement('span');
             span.textContent = cb.checked ? '✓' : '✗';
@@ -4307,7 +4345,6 @@
             } else renderDatesList();
             updateAdminSubmissionsBell();
 
-            // ✅ refresh تلقائي لجدول المجموعات عند تسجيل الحضور/التاسكات
             if (currentLabDipId && document.getElementById('lab-group-copy-detail-view') && document.getElementById('lab-group-copy-detail-view').style.display === 'block') {
                 renderLabDipCopyStudents();
             }
@@ -5080,17 +5117,35 @@
         document.getElementById('course-config-modal').style.display = 'none';
     };
 
+    // ✅ FIXED: يحفظ إعدادات الكورس على كل الدورات اللي بنفس الاسم
     window.saveCourseConfig = async function() {
         if (!editingConfigDiplomaId || !editingConfigCourseName) return;
         const limit = parseInt(document.getElementById('course-config-limit').value) || 8;
         const upcoming = parseInt(document.getElementById('course-config-upcoming').value) || 0;
         const exam = document.getElementById('course-config-exam').checked;
-        const configKey = makeCourseConfigKey(editingConfigDiplomaId, editingConfigCourseName);
+
+        const currentDip = allDiplomas[editingConfigDiplomaId];
+        const diplomaName = currentDip ? (currentDip.name || '').trim() : '';
+
+        // هات كل الـ diploma IDs اللي بنفس الاسم
+        const matchingDipIds = [];
+        Object.keys(allDiplomas).forEach(dipId => {
+            if ((allDiplomas[dipId].name || '').trim() === diplomaName) {
+                matchingDipIds.push(dipId);
+            }
+        });
+        if (matchingDipIds.length === 0) matchingDipIds.push(editingConfigDiplomaId);
+
         try {
-            await database.ref('new_system/settings/diploma_course_config/' + configKey).update({
-                limit, upcomingLimit: upcoming, exam
+            const updates = {};
+            matchingDipIds.forEach(dipId => {
+                const configKey = makeCourseConfigKey(dipId, editingConfigCourseName);
+                updates[`new_system/settings/diploma_course_config/${configKey}/limit`] = limit;
+                updates[`new_system/settings/diploma_course_config/${configKey}/upcomingLimit`] = upcoming;
+                updates[`new_system/settings/diploma_course_config/${configKey}/exam`] = exam;
             });
-            alert('تم حفظ إعدادات الكورس ✅');
+            await database.ref().update(updates);
+            alert(`تم حفظ إعدادات الكورس ✅\nتم التطبيق على ${matchingDipIds.length} نسخة من الدورة "${diplomaName}"`);
             closeCourseConfigModal();
             if (currentDiplomaId && document.getElementById('diploma-detail-view').style.display === 'block') {
                 renderDiplomaCoursesConfig();
@@ -5221,6 +5276,7 @@
         return canvas.toDataURL('image/jpeg', 0.5);
     }
 
+    // ✅ FIXED: PDF يتحفظ على كل الدورات اللي بنفس الاسم
     window.savePdfConfigData = async function() {
         if (!currentEditingPdfDiplomaId || !currentEditingPdfCourseName) return;
         const diplomaId = currentEditingPdfDiplomaId;
@@ -5310,22 +5366,34 @@
                 }
             }
 
-            const pdfTasksRef = database.ref(`new_system/settings/diploma_course_config/${configKey}/pdfTasks`);
-            const saveOps = [];
-            for (let i = 1; i <= dynamicTaskCount; i++) {
-                const tKey = `task_${i}`;
-                if (updatedPdfTasks[tKey]) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
-                else saveOps.push(pdfTasksRef.child(tKey).remove());
-            }
-            Object.keys(updatedPdfTasks).forEach(tKey => {
-                const num = parseInt(String(tKey).replace('task_', ''));
-                if (!isNaN(num) && num > dynamicTaskCount) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
+            // ✅ احفظ PDF على كل الدورات اللي بنفس الاسم
+            const matchingDipIdsForPdf = [];
+            Object.keys(allDiplomas).forEach(dipId => {
+                if ((allDiplomas[dipId].name || '').trim() === diplomaName) {
+                    matchingDipIdsForPdf.push(dipId);
+                }
             });
+            if (matchingDipIdsForPdf.length === 0) matchingDipIdsForPdf.push(diplomaId);
+
+            const saveOps = [];
+            for (const targetDipId of matchingDipIdsForPdf) {
+                const targetConfigKey = makeCourseConfigKey(targetDipId, courseName);
+                const pdfTasksRef = database.ref(`new_system/settings/diploma_course_config/${targetConfigKey}/pdfTasks`);
+                for (let i = 1; i <= dynamicTaskCount; i++) {
+                    const tKey = `task_${i}`;
+                    if (updatedPdfTasks[tKey]) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
+                    else saveOps.push(pdfTasksRef.child(tKey).remove());
+                }
+                Object.keys(updatedPdfTasks).forEach(tKey => {
+                    const num = parseInt(String(tKey).replace('task_', ''));
+                    if (!isNaN(num) && num > dynamicTaskCount) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
+                });
+            }
             await Promise.all(saveOps);
             if (!diplomaCourseConfig[configKey]) diplomaCourseConfig[configKey] = {};
             diplomaCourseConfig[configKey].pdfTasks = updatedPdfTasks;
 
-            alert(`تم حفظ ومعالجة بيانات ${dynamicTaskCount} تاسك بنجاح ✅`);
+            alert(`تم حفظ ومعالجة بيانات ${dynamicTaskCount} تاسك بنجاح ✅\nتم التطبيق على ${matchingDipIdsForPdf.length} نسخة من الدورة "${diplomaName}"`);
             closePdfConfigModal();
         } catch (err) {
             alert('حدث خطأ أثناء المعالجة: ' + err.message);
