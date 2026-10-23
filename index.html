@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=7') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=7');
+        if (window.location.href.indexOf('?v=8') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=8');
         }
     </script>
     <title>test</title>
@@ -1628,11 +1628,14 @@
             if (!currentStudentPhone) return;
             let allSt = [];
             if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
+
+            // ✅ الفلتر الصحيح: نطابق رقم الهاتف فقط (بدون group)
             currentStudentRecords = allSt.filter(s =>
                 extractPureNumber(s.phone) === currentStudentPhone &&
-                extractPureNumber(s.group) === currentStudentGroup &&
                 !s.canceled && s.date && s.date !== "بدون موعد"
             );
+            currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
@@ -1664,10 +1667,7 @@
                     }
                 });
             });
-            currentStudentDiplomaData = matches.filter(m => {
-                const dip = allDiplomas[m.diplomaId];
-                return dip && extractPureNumber(dip.number) === currentStudentGroup;
-            }).map(m => ({
+            currentStudentDiplomaData = matches.map(m => ({
                 diplomaId: m.diplomaId,
                 studentId: m.studentId,
                 name: m.name,
@@ -1740,11 +1740,11 @@
                     return extractPureNumber(dip.number) === group;
                 });
 
+                // ✅ نجيب كل حجوزات الطالب بالهاتف فقط (بدون فلتر group)
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
                 let matchingRecords = allSt.filter(s =>
                     extractPureNumber(s.phone) === phone &&
-                    extractPureNumber(s.group) === group &&
                     !s.canceled &&
                     s.date && s.date !== "بدون موعد"
                 );
@@ -1818,11 +1818,19 @@
         let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
+        // بيانات الدورة من currentStudentDiplomaData
+        let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
+        let dipInfoHtml = '';
+        if (dip) {
+            dipInfoHtml = `<div class="dash-meta" style="margin-top: 4px; color: #fcc01a; font-weight: bold;">📚 ${escapeForAttr(dip.dipName)} &nbsp;•&nbsp; 🔢 رقم الدورة: ${escapeForAttr(dip.dipNumber)}</div>`;
+        }
+
         let html = `
             <div class="dash-header">
                 <div>
                     <div class="dash-greeting">👋 أهلاً، ${escapeForAttr(currentStudentName)}</div>
                     <div class="dash-meta">📞 ${currentStudentPhone}</div>
+                    ${dipInfoHtml}
                 </div>
                 <button class="back-btn" onclick="studentLogout()">خروج</button>
             </div>
@@ -1976,8 +1984,9 @@
                 };
                 const pushRef = await database.ref('students').push(record);
 
-                // تحديث فوري محلي
+                // ✅ إضافة فورية محليًا
                 currentStudentRecords.push({ id: pushRef.key, ...record });
+                currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                 database.goOnline();
                 attachStudentRealtimeListeners();
