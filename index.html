@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=21') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=20');
+        if (window.location.href.indexOf('?v=22') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=22');
         }
     </script>
     <title>test</title>
@@ -1149,7 +1149,6 @@
         const key = makeCourseConfigKey(diplomaId, courseName);
         let cfg = diplomaCourseConfig[key];
 
-        // لو الإعداد مش موجود للـ diplomaId ده، دوّر على دورة تانية بنفس الاسم
         if (!cfg) {
             const dip = allDiplomas[diplomaId];
             const diplomaName = dip ? (dip.name || '').trim().toLowerCase() : '';
@@ -2150,7 +2149,6 @@
         });
 
         const allEnrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
-        // فلترة: بس الكورسات اللي عندها موعد قادم
         const enrolledCourses = allEnrolledCourses.filter(enr => upcomingCourseKeys.has(enr.courseKey));
 
         if (enrolledCourses.length === 0) {
@@ -3500,7 +3498,6 @@
         document.getElementById('export-excel-btn').style.display = keys.length > 0 ? 'block' : 'none';
     }
 
-    // دالة toggle عمود Wires
     window.toggleStudentWires = async function(dipId, studentId, isChecked) {
         try {
             const base = `new_system/diploma_students/${dipId}/${studentId}`;
@@ -5117,7 +5114,7 @@
         document.getElementById('course-config-modal').style.display = 'none';
     };
 
-    // ✅ FIXED: يحفظ إعدادات الكورس على كل الدورات اللي بنفس الاسم
+    // يحفظ إعدادات الكورس على كل الدورات اللي بنفس الاسم
     window.saveCourseConfig = async function() {
         if (!editingConfigDiplomaId || !editingConfigCourseName) return;
         const limit = parseInt(document.getElementById('course-config-limit').value) || 8;
@@ -5127,7 +5124,6 @@
         const currentDip = allDiplomas[editingConfigDiplomaId];
         const diplomaName = currentDip ? (currentDip.name || '').trim() : '';
 
-        // هات كل الـ diploma IDs اللي بنفس الاسم
         const matchingDipIds = [];
         Object.keys(allDiplomas).forEach(dipId => {
             if ((allDiplomas[dipId].name || '').trim() === diplomaName) {
@@ -5276,7 +5272,7 @@
         return canvas.toDataURL('image/jpeg', 0.5);
     }
 
-    // ✅ FIXED: PDF يتحفظ على كل الدورات اللي بنفس الاسم
+    // PDF يتحفظ على كل الدورات اللي بنفس الاسم
     window.savePdfConfigData = async function() {
         if (!currentEditingPdfDiplomaId || !currentEditingPdfCourseName) return;
         const diplomaId = currentEditingPdfDiplomaId;
@@ -5366,7 +5362,6 @@
                 }
             }
 
-            // ✅ احفظ PDF على كل الدورات اللي بنفس الاسم
             const matchingDipIdsForPdf = [];
             Object.keys(allDiplomas).forEach(dipId => {
                 if ((allDiplomas[dipId].name || '').trim() === diplomaName) {
