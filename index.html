@@ -3389,7 +3389,9 @@
             await database.ref().update(cancelUpdates);
             locallyAddedIds.delete(id);
             const idx = currentStudentRecords.findIndex(r => r.id === id);
-            if (idx !== -1) currentStudentRecords.splice(idx, 1);
+            if (idx !== -1) {
+                currentStudentRecords[idx].canceled = true;
+            }
             renderStudentDashboard();
             alert('تم الإلغاء.');
         }).catch(e => alert(e.message));
