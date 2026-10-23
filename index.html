@@ -2010,6 +2010,7 @@
         // canceled يؤثر فقط على المواعيد القادمة المعروضة للطالب.
         let attendedCount = currentStudentRecords.filter(r => r.attended === true).length;
         let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time) && !r.canceled).length;
+        let canceledCount = currentStudentRecords.filter(r => r.canceled === true).length;
         let upcomingRecs = currentStudentRecords.filter(r => !r.canceled && !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
@@ -2045,6 +2046,10 @@
                     <div class="stat-card">
                         <div class="stat-value">${upcomingRecs.length}</div>
                         <div class="stat-label">مواعيد قادمة</div>
+                    </div>
+                    <div class="stat-card">
+                        <div class="stat-value" style="color: #f39c12;">${canceledCount}</div>
+                        <div class="stat-label">مواعيد تم إلغاؤها</div>
                     </div>
                 </div>
             </div>
