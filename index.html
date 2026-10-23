@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=19') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=19');
+        if (window.location.href.indexOf('?v=20') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=20');
         }
     </script>
     <title>test</title>
@@ -706,7 +706,6 @@
             <h2 id="diploma-detail-title" style="color: white; margin: 0;"></h2>
             <button class="add-btn" style="width: auto; margin: 0; padding: 11px 22px;" onclick="openDipAddStudentModal()">➕ إضافة طالب</button>
         </div>
-        <div id="diploma-courses-config-container" style="margin-bottom: 20px;"></div>
         <div id="diploma-students-container"></div>
     </div>
 </div>
@@ -2962,44 +2961,11 @@
         await renderDiplomaStudents();
     };
 
+    // Course capacity, Exam, and Tasks PDF settings are managed from System Settings.
+    // Keep this compatibility function because older update flows still call it.
     function renderDiplomaCoursesConfig() {
-        const dip = allDiplomas[currentDiplomaId];
-        if (!dip) return;
         const container = document.getElementById('diploma-courses-config-container');
-        const courses = dip.courses || [];
-        if (courses.length === 0) { container.innerHTML = ''; return; }
-
-        let html = `<div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; border:1px solid #fcc01a;">
-            <h4 style="color:#fcc01a; margin:0 0 10px 0; border-bottom:1px solid #ddd; padding-bottom:8px;">⚙️ إعدادات كورسات الدورة</h4>
-            <div style="overflow-x:auto;">
-                <table class="excel-table">
-                    <thead>
-                        <tr>
-                            <th>الكورس</th>
-                            <th>عدد التاسكات</th>
-                            <th>السعة القصوى</th>
-                            <th>Exam</th>
-                            <th>إجراءات</th>
-                        </tr>
-                    </thead>
-                    <tbody>`;
-        courses.forEach(c => {
-            const cfg = getCourseConfig(currentDiplomaId, c.name);
-            const tasksCount = getDynamicTasksCount(currentDiplomaId, c.name);
-            const safeName = c.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-            html += `<tr>
-                <td style="font-weight:bold; color:#3b1e5a;">${c.name}</td>
-                <td style="font-weight:bold; color:${tasksCount > 0 ? '#28a745' : '#cc0000'};">${tasksCount}</td>
-                <td>${cfg.limit}</td>
-                <td>${cfg.exam ? '✅' : '❌'}</td>
-                <td>
-                    <button class="add-btn" style="width:auto; margin:0; padding:6px 12px; font-size:13px; background-color:#fcc01a; color:#3b1e5a;" onclick="openCourseConfigModal('${safeName}')">⚙️ إعدادات</button>
-                    <button class="add-btn" style="width:auto; margin:0; padding:6px 12px; font-size:13px; background-color:#0066cc;" onclick="openPdfConfigModalForDiploma('${safeName}')">📄 Tasks PDF</button>
-                </td>
-            </tr>`;
-        });
-        html += `</tbody></table></div></div>`;
-        container.innerHTML = html;
+        if (container) container.innerHTML = '';
     }
 
     window.renderDiplomaStudents = async function() {
