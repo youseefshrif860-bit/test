@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=13') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=13');
+        if (window.location.href.indexOf('?v=14') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=14');
         }
     </script>
     <title>test</title>
@@ -482,11 +482,7 @@
     <div class="modal-content" style="text-align: right;">
         <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">حجز موعد جديد</h3>
         <label>الكورس:</label>
-        <select id="book-course">
-            <option value="PLC">PLC</option>
-            <option value="Classic Control">Classic Control</option>
-            <option value="Motor Drive">Motor Drive</option>
-        </select>
+        <select id="book-course"></select>
         <label>التاريخ:</label>
         <input type="date" id="book-date" onchange="updateBookTimeOptions()">
         <label>الوقت:</label>
@@ -568,6 +564,22 @@
         <div id="pdf-tasks-list" style="max-height: 360px; overflow-y: auto; border: 1px solid #ddd; padding: 10px; border-radius: 5px; margin-bottom: 15px;"></div>
         <button class="submit-btn" id="save-pdf-config-btn" onclick="savePdfConfigData()">حفظ ومعالجة الملف</button>
         <button class="back-btn" style="width:100%; margin-top:10px; border: 1px solid #ccc;" onclick="closePdfConfigModal()">إغلاق</button>
+    </div>
+</div>
+
+<div class="modal-overlay" id="course-config-modal" style="z-index: 1009;">
+    <div class="modal-content" style="max-width: 400px; text-align: right;">
+        <h3 id="course-config-title" style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;"></h3>
+        <label>السعة القصوى للفترة:</label>
+        <input type="number" id="course-config-limit" min="1" value="8">
+        <label>عدد tasks القادمة (0 = كل التاسكات):</label>
+        <input type="number" id="course-config-upcoming" min="0" value="0">
+        <label style="display:flex; align-items:center; gap:8px; cursor:pointer; margin-bottom:15px;">
+            <input type="checkbox" id="course-config-exam" style="width:18px; height:18px; margin:0;">
+            <span>تفعيل الاختبار النهائي (Final Exam)</span>
+        </label>
+        <button class="submit-btn" onclick="saveCourseConfig()">حفظ الإعدادات</button>
+        <button class="back-btn" style="width:100%; margin-top:10px; border: 1px solid #ccc;" onclick="closeCourseConfigModal()">إلغاء</button>
     </div>
 </div>
 
@@ -692,10 +704,11 @@
 
     <div id="diploma-detail-view" style="display: none;">
         <button class="back-btn" style="margin-bottom: 15px;" onclick="backToDiplomaGroupFromDetail()">← رجوع للدورات</button>
-        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px;">
+        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
             <h2 id="diploma-detail-title" style="color: white; margin: 0;"></h2>
             <button class="add-btn" style="width: auto; margin: 0; padding: 11px 22px;" onclick="openDipAddStudentModal()">➕ إضافة طالب</button>
         </div>
+        <div id="diploma-courses-config-container" style="margin-bottom: 20px;"></div>
         <div id="diploma-students-container"></div>
     </div>
 </div>
@@ -780,7 +793,7 @@
                         <h3 style="color: white; margin: 0;">الأيام المسجلة</h3>
                     </div>
                     <div id="records-counter" style="text-align: center; color: #fcc01a; font-weight: bold; margin-bottom: 15px; font-size: 16px; background: rgba(255,255,255,0.1); padding: 7px; border-radius: 5px;"></div>
-                    
+
                     <div class="calendar-controls">
                         <button class="cal-nav-btn" onclick="navigateCalendar(-1)" title="الشهر السابق">‹</button>
                         <div class="cal-selectors">
@@ -883,7 +896,6 @@
                     </div>
                 </div>
                 <div id="ban-rules-container"></div>
-                <div id="courses-settings-container"></div>
                 <div id="support-settings-container"></div>
                 <div id="messages-settings-container"></div>
                 <div class="settings-card" id="lab-tasks-settings-card">
@@ -1123,11 +1135,60 @@
     let isLateBookingBlocked = false;
     let lateBookingOffsetHours = 0;
 
-    let LMS_COURSES = {
-        'classic_control': { title: 'Classic Control', tasks: 15, exam: true, limit: 8, upcomingLimit: 0, pdfTasks: {}, key: 'classic_control' },
-        'plc': { title: 'PLC', tasks: 27, exam: true, limit: 8, upcomingLimit: 0, pdfTasks: {}, key: 'plc' },
-        'motor_drive': { title: 'Motor Drive', tasks: 7, exam: false, limit: 2, upcomingLimit: 0, pdfTasks: {}, key: 'motor_drive' }
-    };
+    /* ============ ديناميكي: إعدادات الكورسات (بدل LMS_COURSES) ============ */
+    let diplomaCourseConfig = {}; // { [diplomaId_courseKey]: { limit, exam, upcomingLimit, pdfTasks } }
+
+    function makeCourseConfigKey(diplomaId, courseName) {
+        return `${diplomaId}_${courseNameToKey(courseName)}`;
+    }
+
+    function getCourseConfig(diplomaId, courseName) {
+        const key = makeCourseConfigKey(diplomaId, courseName);
+        const cfg = diplomaCourseConfig[key] || {};
+        return {
+            limit: parseInt(cfg.limit) || 8,
+            exam: cfg.exam === true,
+            upcomingLimit: parseInt(cfg.upcomingLimit) || 0,
+            pdfTasks: cfg.pdfTasks || {}
+        };
+    }
+
+    function getDynamicTasksCount(diplomaId, courseName) {
+        const diplomaName = (allDiplomas[diplomaId] && allDiplomas[diplomaId].name) || '';
+        return findCourseTasksSmart(diplomaName, courseName);
+    }
+
+    function getStudentEnrolledCourses(studentRecords) {
+        const result = [];
+        const seen = new Set();
+        const activeRecs = (studentRecords || []).filter(r => !r.canceled && r.course && r.course !== 'غير محدد');
+        activeRecs.forEach(r => {
+            const courseName = r.course;
+            const courseKey = courseNameToKey(courseName);
+            const group = extractPureNumber(r.group);
+            Object.keys(allDiplomas).forEach(dipId => {
+                const dip = allDiplomas[dipId];
+                if (!dip) return;
+                if (extractPureNumber(dip.number) !== group) return;
+                const dipCourses = dip.courses || [];
+                if (dipCourses.some(c => courseNameToKey(c.name) === courseKey)) {
+                    const uniqKey = `${dipId}_${courseKey}`;
+                    if (!seen.has(uniqKey)) {
+                        seen.add(uniqKey);
+                        result.push({
+                            diplomaId: dipId,
+                            diplomaName: dip.name || 'دورة',
+                            diplomaNumber: dip.number || '',
+                            courseName: courseName,
+                            courseKey: courseKey,
+                            configKey: uniqKey
+                        });
+                    }
+                }
+            });
+        });
+        return result;
+    }
 
     let globalPeriods = [
         {id: "p1", name: "من 12 ظهراً إلى 3 عصراً", start: 12, end: 15},
@@ -1148,7 +1209,7 @@
     let globalSchedule = JSON.parse(JSON.stringify(defaultSchedule));
 
     /* ============ Calendar & Date View ============ */
-    let currentCalMonth = new Date().getMonth(); 
+    let currentCalMonth = new Date().getMonth();
     let currentCalYear = new Date().getFullYear();
 
     const MONTH_NAMES = ["يناير","فبراير","مارس","أبريل","مايو","يونيو","يوليو","أغسطس","سبتمبر","أكتوبر","نوفمبر","ديسمبر"];
@@ -1284,8 +1345,8 @@
     };
 
     function renderDatesList() {
-        document.getElementById('dates-list').style.display = 'block'; 
-        document.getElementById('periods-list').style.display = 'none'; 
+        document.getElementById('dates-list').style.display = 'block';
+        document.getElementById('periods-list').style.display = 'none';
         document.getElementById('period-details').style.display = 'none';
         renderCalendar();
     }
@@ -1529,7 +1590,6 @@
                 if (s.messages) Object.assign(SYSTEM_MESSAGES, s.messages);
                 if (s.blockLateBooking !== undefined) isLateBookingBlocked = s.blockLateBooking;
                 if (s.lateBookingOffset !== undefined) lateBookingOffsetHours = parseFloat(s.lateBookingOffset) || 0;
-                if (s.courses) Object.keys(s.courses).forEach(k => { if (LMS_COURSES[k]) Object.assign(LMS_COURSES[k], s.courses[k]); });
                 if (s.periodsData) globalPeriods = s.periodsData;
                 if (s.schedule) globalSchedule = s.schedule;
                 if (s.ban_rules) {
@@ -1537,6 +1597,7 @@
                     if (s.ban_rules.inactivity) Object.assign(banRules.inactivity, s.ban_rules.inactivity);
                     if (s.ban_rules.tenure) Object.assign(banRules.tenure, s.ban_rules.tenure);
                 }
+                if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
             }
         });
     }
@@ -1724,13 +1785,13 @@
                 const settingsSnap = await database.ref('settings').get();
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
-                    if (s.courses) Object.keys(s.courses).forEach(k => { if (LMS_COURSES[k]) Object.assign(LMS_COURSES[k], s.courses[k]); });
                     if (s.periodsData) globalPeriods = s.periodsData;
                     if (s.schedule) globalSchedule = s.schedule;
                     if (s.blockLateBooking !== undefined) isLateBookingBlocked = s.blockLateBooking;
                     if (s.lateBookingOffset !== undefined) lateBookingOffsetHours = parseFloat(s.lateBookingOffset) || 0;
                     if (s.lab_phone !== undefined) globalLabPhone = s.lab_phone;
                     if (s.messages) Object.assign(SYSTEM_MESSAGES, s.messages);
+                    if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
                 }
 
                 const [dipSnap, diplomasSnap, studentsSnap, blockSnap, progSnap] = await Promise.all([
@@ -1919,36 +1980,34 @@
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
-        let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-        currentStudentRecords.filter(s => !s.canceled && s.attended && s.tasks).forEach(r => {
-            let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
-            r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
-        });
+        const enrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
 
-        let tasksHtml = '';
-        Object.keys(LMS_COURSES).forEach(cKey => {
-            let courseCfg = LMS_COURSES[cKey];
-            let uncompleted = [];
-            for (let i = 1; i <= courseCfg.tasks; i++) {
-                let tName = `Task ${i}`;
-                if (!cTasks[cKey].has(tName) && !(currentStudentProgress[cKey] && currentStudentProgress[cKey][`task_${i}`])) {
-                    uncompleted.push(i);
+        if (enrolledCourses.length === 0) {
+            html += `<div class="empty-state">لا توجد كورسات مسجل بها</div>`;
+        } else {
+            let tasksHtml = '';
+            enrolledCourses.forEach(enr => {
+                const { diplomaId, diplomaName, courseName, courseKey, configKey } = enr;
+                const courseProgress = (currentStudentProgress && currentStudentProgress[configKey]) || {};
+                const totalTasks = getDynamicTasksCount(diplomaId, courseName);
+
+                for (let i = 1; i <= totalTasks; i++) {
+                    const tKey = `task_${i}`;
+                    const isDoneManual = courseProgress[tKey];
+                    if (isDoneManual) continue;
+                    const sub = courseProgress.submissions && courseProgress.submissions[tKey];
+                    const bellHtml = (sub && sub.comment) ? `<span title="ملاحظة: ${escapeForAttr(sub.comment)}" style="cursor:help; margin-right: 5px;">🔔</span>` : '';
+                    tasksHtml += `<div class="task-mini">
+                        <div style="color: #fcc01a; font-weight: bold; font-size: 15px;">Task ${i} - ${escapeForAttr(courseName)} <span style="font-size:11px; color:#999; font-weight:normal;">(${escapeForAttr(diplomaName)})</span> ${bellHtml}</div>
+                        <button class="admin-btn" style="padding: 6px 12px; font-size: 12px;" onclick="viewStudentTask('${diplomaId}', '${courseName}', '${tKey}', ${i})">عرض</button>
+                    </div>`;
                 }
-            }
-            uncompleted.slice(0, 3).forEach(num => {
-                let tKey = `task_${num}`;
-                let sub = currentStudentProgress[cKey] && currentStudentProgress[cKey].submissions && currentStudentProgress[cKey].submissions[tKey];
-                let bellHtml = '';
-                if (sub && sub.comment) bellHtml = `<span title="ملاحظة: ${escapeForAttr(sub.comment)}" style="cursor:help; margin-right: 5px;">🔔</span>`;
-                tasksHtml += `<div class="task-mini">
-                    <div style="color: #fcc01a; font-weight: bold; font-size: 15px;">Task ${num} - ${courseCfg.title} ${bellHtml}</div>
-                    <button class="admin-btn" style="padding: 6px 12px; font-size: 12px;" onclick="viewStudentTask('${cKey}', '${tKey}', ${num})">عرض</button>
-                </div>`;
             });
-        });
 
-        if (!tasksHtml) tasksHtml = `<div class="empty-state">لا توجد تاسكات قادمة حالياً 🎉</div>`;
-        html += tasksHtml + `</div>`;
+            if (!tasksHtml) tasksHtml = `<div class="empty-state">لا توجد تاسكات قادمة حالياً 🎉</div>`;
+            html += tasksHtml;
+        }
+        html += `</div>`;
 
         document.getElementById('student-dashboard-content').innerHTML = html;
     }
@@ -1957,7 +2016,21 @@
         document.getElementById('book-date').min = today;
         document.getElementById('book-date').value = '';
         document.getElementById('book-time').innerHTML = '<option value="">اختر التاريخ أولاً</option>';
-        document.getElementById('book-course').value = 'PLC';
+
+        const enrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
+        const select = document.getElementById('book-course');
+        select.innerHTML = '';
+        if (enrolledCourses.length === 0) {
+            select.innerHTML = '<option value="">لا توجد كورسات</option>';
+        } else {
+            enrolledCourses.forEach(enr => {
+                const o = document.createElement('option');
+                o.value = enr.courseName;
+                o.text = `${enr.courseName} (${enr.diplomaName})`;
+                select.appendChild(o);
+            });
+        }
+
         document.getElementById('book-appointment-modal').style.display = 'flex';
     };
 
@@ -1990,10 +2063,22 @@
         const course = document.getElementById('book-course').value;
         const date = document.getElementById('book-date').value;
         const time = document.getElementById('book-time').value;
-        if (!date || !time) { showErrorModal('يرجى اختيار التاريخ والوقت.'); return; }
+        if (!date || !time || !course) { showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.'); return; }
 
-        const courseKey = course === 'Classic Control' ? 'classic_control' : (course === 'PLC' ? 'plc' : 'motor_drive');
-        const maxLimit = LMS_COURSES[courseKey].limit || 8;
+        // نحدد الدورة من الكورس (بناءً على group الطالب)
+        let diplomaId = null;
+        Object.keys(allDiplomas).forEach(dipId => {
+            const dip = allDiplomas[dipId];
+            if (!dip) return;
+            if (extractPureNumber(dip.number) !== currentStudentGroup) return;
+            const dipCourses = dip.courses || [];
+            if (dipCourses.some(c => c.name === course)) diplomaId = dipId;
+        });
+
+        if (!diplomaId) { showErrorModal('لم يتم العثور على الدورة المطابقة.'); return; }
+
+        const cfg = getCourseConfig(diplomaId, course);
+        const maxLimit = cfg.limit || 8;
 
         try {
             await runWithOnlineConnection(async () => {
@@ -2325,6 +2410,7 @@
         try {
             await database.ref('diplomas/' + id).remove();
             await database.ref('diploma_students/' + id).remove();
+            await database.ref('settings/diploma_course_config/' + id).remove();
             loadAndRenderDiplomas();
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -2338,8 +2424,49 @@
         document.getElementById('add-diploma-view').style.display = 'none';
         document.getElementById('diplomas-list-view').style.display = 'none';
         document.getElementById('diploma-detail-view').style.display = 'block';
+        renderDiplomaCoursesConfig();
         await renderDiplomaStudents();
     };
+
+    function renderDiplomaCoursesConfig() {
+        const dip = allDiplomas[currentDiplomaId];
+        if (!dip) return;
+        const container = document.getElementById('diploma-courses-config-container');
+        const courses = dip.courses || [];
+        if (courses.length === 0) { container.innerHTML = ''; return; }
+
+        let html = `<div style="background:rgba(255,255,255,0.05); padding:15px; border-radius:8px; border:1px solid #fcc01a;">
+            <h4 style="color:#fcc01a; margin:0 0 10px 0; border-bottom:1px solid #ddd; padding-bottom:8px;">⚙️ إعدادات كورسات الدورة</h4>
+            <div style="overflow-x:auto;">
+                <table class="excel-table">
+                    <thead>
+                        <tr>
+                            <th>الكورس</th>
+                            <th>عدد التاسكات</th>
+                            <th>السعة القصوى</th>
+                            <th>Exam</th>
+                            <th>إجراءات</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+        courses.forEach(c => {
+            const cfg = getCourseConfig(currentDiplomaId, c.name);
+            const tasksCount = getDynamicTasksCount(currentDiplomaId, c.name);
+            const safeName = c.name.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+            html += `<tr>
+                <td style="font-weight:bold; color:#3b1e5a;">${c.name}</td>
+                <td style="font-weight:bold; color:${tasksCount > 0 ? '#28a745' : '#cc0000'};">${tasksCount}</td>
+                <td>${cfg.limit}</td>
+                <td>${cfg.exam ? '✅' : '❌'}</td>
+                <td>
+                    <button class="add-btn" style="width:auto; margin:0; padding:6px 12px; font-size:13px; background-color:#fcc01a; color:#3b1e5a;" onclick="openCourseConfigModal('${safeName}')">⚙️ إعدادات</button>
+                    <button class="add-btn" style="width:auto; margin:0; padding:6px 12px; font-size:13px; background-color:#0066cc;" onclick="openPdfConfigModalForDiploma('${safeName}')">📄 Tasks PDF</button>
+                </td>
+            </tr>`;
+        });
+        html += `</tbody></table></div></div>`;
+        container.innerHTML = html;
+    }
 
     window.renderDiplomaStudents = async function() {
         const container = document.getElementById('diploma-students-container');
@@ -2764,9 +2891,10 @@
 
                 courseList.forEach(course => {
                     const courseKey = courseNameToKey(course.name);
-                    const totalTasks = findCourseTasksSmart(diplomaName, course.name);
+                    const configKey = `${currentLabDipId}_${courseKey}`;
+                    const totalTasks = getDynamicTasksCount(currentLabDipId, course.name);
                     let completed = 0;
-                    const cProg = stProg[courseKey] || {};
+                    const cProg = stProg[configKey] || {};
                     for (let i = 1; i <= totalTasks; i++) {
                         if (cProg[`task_${i}`]) completed++;
                     }
@@ -2809,32 +2937,29 @@
     }
 
     /* ============ DIPLOMA CERTIFICATES VIEW ============ */
+    // ✅ الشهادات بناءً على الدورة — الطالب ياخد شهادة الدورة لما يخلص كل تاسكات كل كورساتها
 
     let currentCertGroup = null;
     let currentCertSubView = null;
     let certDataCache = { diplomas: {}, students: {} };
 
-    function isStudentEligibleForCert(dip, student) {
+    function isStudentEligibleForDiplomaCert(dipId, dip, studentProgressData, allStudentRecords, studentPhone) {
         if (!dip.courses || dip.courses.length === 0) return false;
+        // نجمع completedTasksSet للطالب في هذه الدورة
+        const cTasks = {};
+        allStudentRecords.filter(s => extractPureNumber(s.phone) === studentPhone && !s.canceled && s.attended && s.tasks).forEach(r => {
+            const courseName = r.course;
+            const courseKey = courseNameToKey(courseName);
+            const configKey = `${dipId}_${courseKey}`;
+            if (!cTasks[configKey]) cTasks[configKey] = new Set();
+            r.tasks.split('|').forEach(t => { if (t.trim()) cTasks[configKey].add(t.trim()); });
+        });
+
         for (const course of dip.courses) {
-            const att = student.attendance && student.attendance[course.name] ? student.attendance[course.name] : {};
-            for (let i = 1; i <= course.lectures; i++) {
-                if (att[i] !== true) return false;
-            }
+            const prog = calculateProgressDynamic(dipId, course.name, cTasks, studentProgressData);
+            if (prog.percentage < 100 || prog.totalItems === 0) return false;
         }
         return true;
-    }
-
-    function getAttendanceSummary(dip, student) {
-        let total = 0, attended = 0;
-        (dip.courses || []).forEach(course => {
-            const att = student.attendance && student.attendance[course.name] ? student.attendance[course.name] : {};
-            for (let i = 1; i <= course.lectures; i++) {
-                total++;
-                if (att[i] === true) attended++;
-            }
-        });
-        return { attended, total };
     }
 
     window.openDiplomaCertificatesView = async function() {
@@ -2858,21 +2983,29 @@
 
     async function loadCertData() {
         try {
-            const [dipSnap, studentsSnap] = await Promise.all([
+            const [dipSnap, studentsSnap, progSnap, allStSnap] = await Promise.all([
                 database.ref('diplomas').get(),
-                database.ref('diploma_students').get()
+                database.ref('diploma_students').get(),
+                database.ref('student_progress').get(),
+                database.ref('students').get()
             ]);
             certDataCache.diplomas = dipSnap.exists() ? dipSnap.val() : {};
             certDataCache.students = studentsSnap.exists() ? studentsSnap.val() : {};
+            certDataCache.progress = progSnap.exists() ? progSnap.val() : {};
+            let allSt = [];
+            if (allStSnap.exists()) allStSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
+            certDataCache.allStudentRecords = allSt;
         } catch(e) {
             alert('خطأ في تحميل البيانات: ' + e.message);
         }
     }
 
     function buildCertGroups() {
-        const groups = {};
+        const groups = {}; // { diplomaName: { due: [], graduates: [] } }
         const diplomas = certDataCache.diplomas || {};
         const allDipStudents = certDataCache.students || {};
+        const progressMap = certDataCache.progress || {};
+        const allRecs = certDataCache.allStudentRecords || [];
 
         Object.keys(diplomas).forEach(dipId => {
             const dip = diplomas[dipId];
@@ -2882,10 +3015,15 @@
             const students = allDipStudents[dipId] || {};
             Object.keys(students).forEach(stId => {
                 const st = students[stId];
+                const purePhone = extractPureNumber(st.phone);
+                const stProg = progressMap[purePhone] || {};
+                const certDelivered = stProg.cert_delivered || {};
+
                 const record = { dipId, stId, dip, ...st };
-                if (st.cert_received === true) {
+
+                if (certDelivered[`diploma_${dipId}`]) {
                     groups[name].graduates.push(record);
-                } else if (isStudentEligibleForCert(dip, st)) {
+                } else if (isStudentEligibleForDiplomaCert(dipId, dip, stProg, allRecs, purePhone)) {
                     groups[name].due.push(record);
                 }
             });
@@ -3002,24 +3140,20 @@
                         <th>الاسم</th>
                         <th>الهاتف</th>
                         <th>رقم الدورة</th>
-                        <th>الحضور</th>
                         <th style="width: 100px;">تم الاستلام</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
         list.forEach((item, index) => {
-            const attSum = getAttendanceSummary(item.dip, item);
-            const attColor = attSum.attended === attSum.total ? '#28a745' : '#cc0000';
             html += `
                 <tr>
                     <td style="background:#f0f0f0; font-weight:bold; color:#3b1e5a;">${index + 1}</td>
                     <td style="font-weight:bold; color:#3b1e5a;">${item.name || ''}</td>
                     <td onclick="openWhatsApp('${item.phone}')" style="cursor:pointer; font-family:Tahoma;">${item.phone || ''}</td>
                     <td>${item.dip.number || ''}</td>
-                    <td style="font-weight:bold; color:${attColor};">${attSum.attended}/${attSum.total}</td>
                     <td>
-                        <input type="checkbox" class="attendance-check" onchange="toggleCertReceived('${item.dipId}', '${item.stId}', this.checked)">
+                        <input type="checkbox" class="attendance-check" onchange="toggleCertReceived('${item.dipId}', '${extractPureNumber(item.phone)}', this.checked)">
                     </td>
                 </tr>
             `;
@@ -3043,7 +3177,6 @@
                         <th>الاسم</th>
                         <th>الهاتف</th>
                         <th>رقم الدورة</th>
-                        <th>الحضور</th>
                         <th>تاريخ الاستلام</th>
                         <th>بواسطة</th>
                         <th>إجراء</th>
@@ -3052,18 +3185,17 @@
                 <tbody>
         `;
         list.forEach((item, index) => {
-            const attSum = getAttendanceSummary(item.dip, item);
+            const purePhone = extractPureNumber(item.phone);
             html += `
                 <tr>
                     <td style="background:#f0f0f0; font-weight:bold; color:#3b1e5a;">${index + 1}</td>
                     <td style="font-weight:bold; color:#3b1e5a;">${item.name || ''}</td>
                     <td onclick="openWhatsApp('${item.phone}')" style="cursor:pointer; font-family:Tahoma;">${item.phone || ''}</td>
                     <td>${item.dip.number || ''}</td>
-                    <td style="font-weight:bold; color:#28a745;">${attSum.attended}/${attSum.total}</td>
                     <td>${item.cert_received_at || '-'}</td>
                     <td style="font-size:12px; color:#666;">${item.cert_received_by || '-'}</td>
                     <td>
-                        <button class="delete-btn" style="margin:0; padding:5px 12px;" onclick="toggleCertReceived('${item.dipId}', '${item.stId}', false)">تراجع ↩️</button>
+                        <button class="delete-btn" style="margin:0; padding:5px 12px;" onclick="toggleCertReceived('${item.dipId}', '${purePhone}', false)">تراجع ↩️</button>
                     </td>
                 </tr>
             `;
@@ -3072,14 +3204,14 @@
         container.innerHTML = html;
     }
 
-    window.toggleCertReceived = async function(dipId, stId, isReceived) {
+    window.toggleCertReceived = async function(dipId, purePhone, isReceived) {
         try {
-            const updates = {
-                cert_received: isReceived,
-                cert_received_by: isReceived ? (currentAdminName || 'غير معروف') : null,
-                cert_received_at: isReceived ? getLocalDateTimeString() : null
-            };
-            await database.ref(`diploma_students/${dipId}/${stId}`).update(updates);
+            const key = `diploma_${dipId}`;
+            const updates = {};
+            updates[`${purePhone}/cert_delivered/${key}`] = isReceived;
+            updates[`${purePhone}/cert_delivered/${key}_by`] = isReceived ? (currentAdminName || 'غير معروف') : null;
+            updates[`${purePhone}/cert_delivered/${key}_at`] = isReceived ? getLocalDateTimeString() : null;
+            await database.ref('student_progress').update(updates);
             await loadCertData();
             if (currentCertSubView === 'due') {
                 openCertSubView('due');
@@ -3137,14 +3269,15 @@
     };
 
     window.submitStudentTaskLink = async function() {
-        if (!activeStudentManagePhone || !activeViewerCourseKey || !activeViewerTaskKey) return;
+        if (!activeStudentManagePhone || !activeViewerDiplomaId || !activeViewerCourseName || !activeViewerTaskKey) return;
         let linkVal = document.getElementById('student-submit-link-input').value.trim();
         if (!linkVal || !/^https?:\/\//i.test(linkVal)) { alert('يرجى إدخال رابط صحيح يبدأ بـ http:// أو https://'); return; }
         let btn = document.getElementById('student-submit-link-btn');
         btn.disabled = true; btn.innerText = 'جاري الإرسال...';
         try {
+            const configKey = makeCourseConfigKey(activeViewerDiplomaId, activeViewerCourseName);
             await runWithOnlineConnection(async () => {
-                await database.ref(`student_progress/${activeStudentManagePhone}/${activeViewerCourseKey}/submissions/${activeViewerTaskKey}`).set({
+                await database.ref(`student_progress/${activeStudentManagePhone}/${configKey}/submissions/${activeViewerTaskKey}`).set({
                     link: linkVal, comment: null, timestamp: new Date().toLocaleString()
                 });
             });
@@ -3162,7 +3295,8 @@
         finally { btn.disabled = false; btn.innerText = 'إرسال الرابط'; }
     };
 
-    let activeViewerCourseKey = null;
+    let activeViewerDiplomaId = null;
+    let activeViewerCourseName = null;
     let activeViewerTaskKey = null;
 
     function handleSearch(query) {
@@ -3182,28 +3316,49 @@
     }
 
     function checkIfStudentIsVIP(purePhoneParam, recordsArr, progressDataObj) {
-        let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-        let studentRecords = recordsArr.filter(s => extractPureNumber(s.phone) === purePhoneParam && !s.canceled && s.attended && s.tasks);
-        studentRecords.forEach(r => {
-            let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
-            r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
+        const enrolledCourses = getStudentEnrolledCourses(recordsArr.filter(r => extractPureNumber(r.phone) === purePhoneParam));
+        if (enrolledCourses.length === 0) return false;
+
+        const cTasks = {};
+        recordsArr.filter(s => extractPureNumber(s.phone) === purePhoneParam && !s.canceled && s.attended && s.tasks).forEach(r => {
+            const courseKey = courseNameToKey(r.course);
+            Object.keys(allDiplomas).forEach(dipId => {
+                const dip = allDiplomas[dipId];
+                if (!dip) return;
+                if (!(dip.courses || []).some(c => courseNameToKey(c.name) === courseKey)) return;
+                const configKey = `${dipId}_${courseKey}`;
+                if (!cTasks[configKey]) cTasks[configKey] = new Set();
+                r.tasks.split('|').forEach(t => { if (t.trim()) cTasks[configKey].add(t.trim()); });
+            });
         });
-        let isAllCompleted = true;
-        Object.keys(LMS_COURSES).forEach(courseKey => {
-            let prog = calculateProgressDynamic(courseKey, cTasks, progressDataObj);
-            if (prog.percentage < 100 || prog.totalItems === 0) isAllCompleted = false;
-        });
-        return isAllCompleted;
+
+        const diplomaIds = new Set(enrolledCourses.map(c => c.diplomaId));
+        for (const dipId of diplomaIds) {
+            const dip = allDiplomas[dipId];
+            if (!dip) continue;
+            const dipCourses = dip.courses || [];
+            if (dipCourses.length === 0) continue;
+            let allDone = true;
+            for (const c of dipCourses) {
+                const prog = calculateProgressDynamic(dipId, c.name, cTasks, progressDataObj);
+                if (prog.percentage < 100 || prog.totalItems === 0) { allDone = false; break; }
+            }
+            if (allDone) return true;
+        }
+        return false;
     }
 
-    window.viewStudentTask = function(courseKey, taskKey, taskNum) {
-        let course = LMS_COURSES[courseKey];
-        if (!course) return;
-        let tData = (course.pdfTasks && course.pdfTasks[taskKey]) ? course.pdfTasks[taskKey] : {};
-        activeViewerCourseKey = courseKey;
+    window.viewStudentTask = function(diplomaId, courseName, taskKey, taskNum) {
+        const cfg = getCourseConfig(diplomaId, courseName);
+        const tData = (cfg.pdfTasks && cfg.pdfTasks[taskKey]) ? cfg.pdfTasks[taskKey] : {};
+
+        activeViewerDiplomaId = diplomaId;
+        activeViewerCourseName = courseName;
         activeViewerTaskKey = taskKey;
-        document.getElementById('viewer-task-title').innerText = `${course.title} - Task ${taskNum}`;
-        let imgContainer = document.getElementById('viewer-task-container');
+
+        document.getElementById('viewer-task-title').innerText = `${courseName} - Task ${taskNum}`;
+
+        const imgContainer = document.getElementById('viewer-task-container');
         imgContainer.innerHTML = '';
         if (tData.images && tData.images.length > 0) {
             tData.images.forEach(imgSrc => {
@@ -3212,15 +3367,16 @@
             imgContainer.style.display = 'block';
         } else imgContainer.style.display = 'none';
 
-        let notesEl = document.getElementById('viewer-task-notes');
-        let formattedNotes = formatSmartTaskNotes(tData.page, tData.comment);
+        const notesEl = document.getElementById('viewer-task-notes');
+        const formattedNotes = formatSmartTaskNotes(tData.page, tData.comment);
         if (formattedNotes) { notesEl.innerHTML = formattedNotes; notesEl.style.display = 'block'; }
         else { notesEl.innerHTML = ''; notesEl.style.display = 'none'; }
 
-        let subBox = document.getElementById('viewer-submission-box');
-        let subInput = document.getElementById('student-submit-link-input');
+        const subBox = document.getElementById('viewer-submission-box');
+        const subInput = document.getElementById('student-submit-link-input');
         if (tData.allowSubmission) {
-            let existingSub = currentStudentManageProgress && currentStudentManageProgress[courseKey] && currentStudentManageProgress[courseKey].submissions && currentStudentManageProgress[courseKey].submissions[taskKey];
+            const configKey = makeCourseConfigKey(diplomaId, courseName);
+            const existingSub = currentStudentManageProgress && currentStudentManageProgress[configKey] && currentStudentManageProgress[configKey].submissions && currentStudentManageProgress[configKey].submissions[taskKey];
             subInput.value = (existingSub && existingSub.link) ? existingSub.link : '';
             subBox.style.display = 'block';
         } else subBox.style.display = 'none';
@@ -3231,7 +3387,7 @@
         document.getElementById('student-task-viewer-modal').style.display = 'none';
         document.getElementById('viewer-task-container').innerHTML = '';
         document.getElementById('viewer-task-notes').innerHTML = '';
-        let subInput = document.getElementById('student-submit-link-input');
+        const subInput = document.getElementById('student-submit-link-input');
         if (subInput) subInput.value = '';
     };
 
@@ -3263,15 +3419,12 @@
         const btn = document.querySelector('#manage-view .submit-btn'); btn.innerText = 'جاري البحث...';
         try {
             await runWithOnlineConnection(async () => {
-                const [snap, progSnap, coursesSnap] = await Promise.all([
+                const [snap, progSnap, diplomasSnap] = await Promise.all([
                     database.ref('students').get(),
                     database.ref('student_progress/' + mPhone).get(),
-                    database.ref('settings/courses').get()
+                    database.ref('diplomas').get()
                 ]);
-                if (coursesSnap.exists()) {
-                    let cData = coursesSnap.val();
-                    Object.keys(cData).forEach(k => { if(LMS_COURSES[k]) Object.assign(LMS_COURSES[k], cData[k]); });
-                }
+                allDiplomas = diplomasSnap.exists() ? diplomasSnap.val() : {};
                 let studentProgressData = progSnap.exists() ? progSnap.val() : {};
                 currentStudentManageProgress = studentProgressData;
                 let resultsHTML = '';
@@ -3288,13 +3441,18 @@
                         let upcomingRecords = validRecords.filter(s => !isPeriodPassed(s.date, s.time));
 
                         currentStudentNotifications = [];
-                        Object.keys(LMS_COURSES).forEach(cKey => {
-                            let cCfg = LMS_COURSES[cKey];
-                            let subs = studentProgressData[cKey] && studentProgressData[cKey].submissions ? studentProgressData[cKey].submissions : {};
+                        const configKeys = new Set();
+                        Object.keys(studentProgressData).forEach(k => { if (k.includes('_')) configKeys.add(k); });
+                        configKeys.forEach(configKey => {
+                            const subs = studentProgressData[configKey] && studentProgressData[configKey].submissions;
+                            if (!subs) return;
                             Object.keys(subs).forEach(tKey => {
                                 if (subs[tKey] && subs[tKey].comment) {
-                                    let tNum = tKey.replace('task_', '');
-                                    currentStudentNotifications.push({ courseKey: cKey, courseTitle: cCfg.title, taskKey: tKey, taskNum: tNum, comment: subs[tKey].comment });
+                                    let tNum = tKey.replace('task_', '').replace('exam', 'Final Exam');
+                                    const parts = configKey.split('_');
+                                    const dipId = parts[0];
+                                    const courseName = parts.slice(1).join(' ');
+                                    currentStudentNotifications.push({ courseKey: configKey, courseTitle: courseName, taskKey: tKey, taskNum: tNum, comment: subs[tKey].comment });
                                 }
                             });
                         });
@@ -3322,41 +3480,6 @@
                             upcomingRecords.forEach(app => {
                                 resultsHTML += `<div style="background: rgba(255,255,255,0.1); padding: 15px; border-radius: 5px; margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center;"><div><div style="color:#fcc01a; font-weight:bold; font-size:16px;">${app.course}</div><div style="font-size:14px; margin-top:5px;">${app.date} <br> ${app.time}</div></div><button class="delete-btn" style="padding:10px 15px; background-color:#ff4d4d;" onclick="cancelMyApp('${app.id}')">إلغاء</button></div>`;
                             });
-
-                            let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-                            studentAllRecords.filter(s => !s.canceled && s.attended && s.tasks).forEach(r => {
-                                let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
-                                r.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
-                            });
-
-                            let bookedCoursesKeys = [...new Set(upcomingRecords.map(r => r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive')))];
-                            let upcomingTasksCardsHTML = '';
-                            bookedCoursesKeys.forEach(cKey => {
-                                let courseCfg = LMS_COURSES[cKey];
-                                let showCount = parseInt(courseCfg.upcomingLimit) || 0;
-                                if (showCount > 0) {
-                                    let uncompletedNums = [];
-                                    for (let i = 1; i <= courseCfg.tasks; i++) {
-                                        let tName = `Task ${i}`;
-                                        let inSession = cTasks[cKey] && cTasks[cKey].has(tName);
-                                        let inManual = studentProgressData && studentProgressData[cKey] && studentProgressData[cKey][`task_${i}`];
-                                        if (!inSession && !inManual) {
-                                            uncompletedNums.push(i);
-                                            if (uncompletedNums.length >= showCount) break;
-                                        }
-                                    }
-                                    uncompletedNums.forEach(num => {
-                                        let tKey = `task_${num}`;
-                                        let subInfo = studentProgressData && studentProgressData[cKey] && studentProgressData[cKey].submissions && studentProgressData[cKey].submissions[tKey];
-                                        let taskBellHtml = '';
-                                        if (subInfo && subInfo.comment) {
-                                            taskBellHtml = `<div class="bell-wrapper" onclick="openStudentCommentsModal('${cKey}', '${tKey}')" title="ملاحظة" style="margin-left: 8px;"><span class="bell-icon" style="font-size:18px;">🔔</span><span class="bell-badge">1</span></div>`;
-                                        }
-                                        upcomingTasksCardsHTML += `<div style="background: rgba(255,255,255,0.1); padding: 12px 15px; border-radius: 5px; margin-bottom: 10px; display:flex; justify-content:space-between; align-items:center; border-right: 4px solid #fcc01a;"><div style="display:flex; align-items:center; gap:8px;"><div style="color:#fcc01a; font-weight:bold; font-size:15px;">Task ${num} - ${courseCfg.title}</div>${taskBellHtml}</div><button class="admin-btn" style="padding:8px 16px; font-size:13px; white-space:nowrap;" onclick="viewStudentTask('${cKey}', '${tKey}', ${num})">عرض الـ Task</button></div>`;
-                                    });
-                                }
-                            });
-                            if (upcomingTasksCardsHTML !== '') resultsHTML += `<h4 style="color:#fcc01a; border-bottom: 1px solid #fcc01a; padding-bottom: 5px; margin-top: 20px; margin-bottom:15px;">الـ Tasks القادمة</h4>` + upcomingTasksCardsHTML;
                         } else resultsHTML += '<p style="text-align:center; color:#ddd; font-weight:bold;">لا توجد مواعيد قادمة.</p>';
                     } else resultsHTML = `<p style="text-align:center; color:#ff4d4d; background:white; padding:10px; border-radius:5px; font-weight:bold;">${SYSTEM_MESSAGES.not_found}</p>`;
                 } else resultsHTML = `<p style="text-align:center; color:#ff4d4d;">${SYSTEM_MESSAGES.not_found}</p>`;
@@ -3415,8 +3538,8 @@
             const phone = purePhoneCheck;
             const pureTargetGroup = extractPureNumber(group || '');
             if (!pureTargetGroup) { showErrorModal("يرجى إدخال رقم المجموعة."); resetBtn(); return; }
-            const courseKey = course === 'Classic Control' ? 'classic_control' : (course === 'PLC' ? 'plc' : 'motor_drive');
-            const maxLimit = LMS_COURSES[courseKey].limit || 8;
+            const courseKey = courseNameToKey(course);
+            const maxLimit = (diplomaCourseConfig[`${pureTargetGroup}_${courseKey}`] && diplomaCourseConfig[`${pureTargetGroup}_${courseKey}`].limit) || 8;
             let todayStr = getLocalDateString();
             const appointmentRows = document.querySelectorAll('.appointment-row'); let appointments = []; let hasDuplicate = false; let tempSet = new Set(); let hasLateBooking = false;
             appointmentRows.forEach(row => {
@@ -3500,16 +3623,16 @@
             if(snap.exists()) lateBookingOffsetHours = parseFloat(snap.val()) || 0;
             renderSystemSettingsUI();
         });
-        database.ref('settings/courses').on('value', snap => {
-            if(snap.exists()) {
-                let data = snap.val();
-                Object.keys(data).forEach(k => { if(LMS_COURSES[k]) Object.assign(LMS_COURSES[k], data[k]); });
-            }
+        database.ref('settings/diploma_course_config').on('value', snap => {
+            diplomaCourseConfig = snap.exists() ? snap.val() : {};
             renderSystemSettingsUI();
             if (document.getElementById('view-groups').classList.contains('active')) {
                 if (currentLabDipId) renderLabDipCopyStudents();
                 else if (currentLabGroupName) renderLabGroupCopies();
                 else renderLabGroups();
+            }
+            if (currentDiplomaId && document.getElementById('diploma-detail-view').style.display === 'block') {
+                renderDiplomaCoursesConfig();
             }
         });
         database.ref('settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
@@ -3530,6 +3653,9 @@
                 renderLabTasksCourseInputs();
             }
             if (currentLabDipId) renderLabDipCopyStudents();
+            if (currentDiplomaId && document.getElementById('diploma-detail-view').style.display === 'block') {
+                renderDiplomaCoursesConfig();
+            }
             if (document.getElementById('view-sysSettings').classList.contains('active')) {
                 renderSystemSettingsUI();
             }
@@ -3598,27 +3724,19 @@
         let phoneMap = new Map();
         let sortedAll = [...allStudents].sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
         sortedAll.forEach(s => { phoneMap.set(extractPureNumber(s.phone), s); });
-        let cTasksByStudent = {};
-        allStudents.filter(s => !s.canceled && s.attended && s.tasks).forEach(r => {
-            let p = extractPureNumber(r.phone);
-            if (!cTasksByStudent[p]) cTasksByStudent[p] = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
-            let cKey = r.course === 'Classic Control' ? 'classic_control' : (r.course === 'PLC' ? 'plc' : 'motor_drive');
-            r.tasks.split('|').forEach(t => { if (t.trim()) cTasksByStudent[p][cKey].add(t.trim()); });
-        });
+
         let pendingStudents = [];
         Object.keys(allProgress).forEach(purePhone => {
             let prog = allProgress[purePhone] || {};
             let hasPendingForReview = false;
-            Object.keys(LMS_COURSES).forEach(cKey => {
-                let subs = prog[cKey] && prog[cKey].submissions ? prog[cKey].submissions : {};
+            Object.keys(prog).forEach(configKey => {
+                if (!configKey.includes('_')) return;
+                const config = prog[configKey] || {};
+                const subs = config.submissions || {};
                 Object.keys(subs).forEach(tKey => {
-                    let subObj = subs[tKey];
-                    if (subObj && subObj.link) {
-                        let tNum = tKey.replace('task_', '');
-                        let tName = `Task ${tNum}`;
-                        let inSession = cTasksByStudent[purePhone] && cTasksByStudent[purePhone][cKey] && cTasksByStudent[purePhone][cKey].has(tName);
-                        let inManual = prog[cKey] && prog[cKey][tKey];
-                        if (!inSession && !inManual && !subObj.comment) hasPendingForReview = true;
+                    const subObj = subs[tKey];
+                    if (subObj && subObj.link && !subObj.comment) {
+                        if (!config[tKey]) hasPendingForReview = true;
                     }
                 });
             });
@@ -3695,56 +3813,70 @@
         }
     };
 
-    function calculateProgressDynamic(courseKey, completedTasksSet, studentProgressData) {
-        let limits = LMS_COURSES[courseKey] || { tasks: 0, exam: false };
-        let extraTasksObj = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey].extra_tasks;
-        let extraKeys = extraTasksObj ? Object.keys(extraTasksObj) : [];
-        let extraCount = extraKeys.length;
-        let totalItems = limits.tasks + (limits.exam ? 1 : 0) + extraCount;
+    function calculateProgressDynamic(diplomaId, courseName, completedTasksSet, studentProgressData) {
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        const courseProgress = (studentProgressData && studentProgressData[configKey]) || {};
+        const totalTasks = getDynamicTasksCount(diplomaId, courseName);
+        const cfg = getCourseConfig(diplomaId, courseName);
+
+        const extraTasksObj = courseProgress.extra_tasks;
+        const extraKeys = extraTasksObj ? Object.keys(extraTasksObj) : [];
+        const extraCount = extraKeys.length;
+
+        const totalItems = totalTasks + (cfg.exam ? 1 : 0) + extraCount;
         let completed = 0;
-        for (let i = 1; i <= limits.tasks; i++) {
-            let tName = `Task ${i}`;
-            let inSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has(tName);
-            let inManual = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey][`task_${i}`];
+
+        for (let i = 1; i <= totalTasks; i++) {
+            const tName = `Task ${i}`;
+            const inSession = completedTasksSet[configKey] && completedTasksSet[configKey].has(tName);
+            const inManual = courseProgress[`task_${i}`];
             if (inSession || inManual) completed++;
         }
-        let examInSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has("Final Exam");
-        let examInManual = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey]['exam'];
-        if (limits.exam && (examInManual || examInSession)) completed++;
+
+        if (cfg.exam) {
+            const examInSession = completedTasksSet[configKey] && completedTasksSet[configKey].has("Final Exam");
+            const examInManual = courseProgress['exam'];
+            if (examInManual || examInSession) completed++;
+        }
+
         extraKeys.forEach((key, index) => {
-            let item = extraTasksObj[key];
-            let tName = `Task +${index + 1}`;
-            let isDoneManual = (typeof item === 'object' && item !== null) ? !!item.completed : false;
-            let isDoneSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has(tName);
+            const item = extraTasksObj[key];
+            const tName = `Task +${index + 1}`;
+            const isDoneManual = (typeof item === 'object' && item !== null) ? !!item.completed : false;
+            const isDoneSession = completedTasksSet[configKey] && completedTasksSet[configKey].has(tName);
             if (isDoneManual || isDoneSession) completed++;
         });
-        return { completed, totalItems, percentage: totalItems === 0 ? 0 : (completed / totalItems) * 100 };
+
+        return { completed, totalItems, percentage: totalItems === 0 ? 0 : (completed / totalItems) * 100, totalTasks, cfg };
     }
 
-    window.addExtraTask = async function(phone, courseKey) {
-        let input = document.getElementById('extra-task-input-' + courseKey);
-        let desc = input.value.trim(); if (!desc) return;
+    window.addExtraTask = async function(phone, diplomaId, courseName) {
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        const input = document.getElementById(`extra-task-input-${configKey}`);
+        const desc = input.value.trim();
+        if (!desc) return;
         try {
-            await database.ref(`student_progress/${extractPureNumber(phone)}/${courseKey}/extra_tasks`).push({ desc, completed: false });
+            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks`).push({ desc, completed: false });
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
-    window.toggleExtraTask = async function(phone, courseKey, taskKey, currentDesc, currentState) {
-        let newState = !currentState;
+    window.toggleExtraTask = async function(phone, diplomaId, courseName, taskKey, currentDesc, currentState) {
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        const newState = !currentState;
         try {
-            await database.ref(`student_progress/${extractPureNumber(phone)}/${courseKey}/extra_tasks/${taskKey}`).set({ desc: currentDesc, completed: newState });
+            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).set({ desc: currentDesc, completed: newState });
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
-    window.deleteExtraTask = async function(phone, courseKey, taskKey) {
-        if(confirm('حذف هذا التاسك؟')) {
-            try {
-                await database.ref(`student_progress/${extractPureNumber(phone)}/${courseKey}/extra_tasks/${taskKey}`).remove();
-                selectStudent(phone);
-            } catch(e) { alert('خطأ: ' + e.message); }
-        }
+    window.deleteExtraTask = async function(phone, diplomaId, courseName, taskKey) {
+        if (!confirm('حذف هذا التاسك؟')) return;
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        try {
+            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).remove();
+            selectStudent(phone);
+        } catch(e) { alert('خطأ: ' + e.message); }
     };
 
     function toggleAccordion(btnId, panelId) {
@@ -3754,35 +3886,38 @@
         else { panel.style.display = "block"; btn.classList.add('active'); openCoursePanels.add(courseKey); }
     }
 
-    window.toggleLegacyTask = async function(phone, courseKey, taskKey, currentState) {
-        let newState = !currentState;
-        let pureP = extractPureNumber(phone);
+    window.toggleLegacyTask = async function(phone, diplomaId, courseName, taskKey, currentState) {
+        const newState = !currentState;
+        const pureP = extractPureNumber(phone);
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
         try {
-            let updates = {};
+            const updates = {};
             updates[taskKey] = newState;
             if (newState) updates[`submissions/${taskKey}`] = null;
-            await database.ref(`student_progress/${pureP}/${courseKey}`).update(updates);
+            await database.ref(`student_progress/${pureP}/${configKey}`).update(updates);
             selectStudent(phone);
         } catch (err) { alert('خطأ: ' + err.message); }
     };
 
-    window.toggleAllTasks = async function(phone, courseKey, isChecked) {
-        let limits = LMS_COURSES[courseKey]; if(!limits) return;
-        let pureP = extractPureNumber(phone);
-        let updates = {};
-        for(let i=1; i<=limits.tasks; i++) updates[`task_${i}`] = isChecked;
-        if(limits.exam) updates['exam'] = isChecked;
+    window.toggleAllTasks = async function(phone, diplomaId, courseName, isChecked) {
+        const pureP = extractPureNumber(phone);
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        const totalTasks = getDynamicTasksCount(diplomaId, courseName);
+        const cfg = getCourseConfig(diplomaId, courseName);
+        const updates = {};
+        for (let i = 1; i <= totalTasks; i++) updates[`task_${i}`] = isChecked;
+        if (cfg.exam) updates['exam'] = isChecked;
         if (isChecked) updates['submissions'] = null;
-        let extraTasksObj = allProgress[pureP] && allProgress[pureP][courseKey] && allProgress[pureP][courseKey].extra_tasks;
-        if (extraTasksObj) {
-            Object.keys(extraTasksObj).forEach(k => {
-                let item = extraTasksObj[k];
-                let d = (typeof item === 'object' && item !== null) ? (item.desc || '') : String(item);
+        const existing = allProgress[pureP] && allProgress[pureP][configKey] && allProgress[pureP][configKey].extra_tasks;
+        if (existing) {
+            Object.keys(existing).forEach(k => {
+                const item = existing[k];
+                const d = (typeof item === 'object' && item !== null) ? (item.desc || '') : String(item);
                 updates[`extra_tasks/${k}`] = { desc: d, completed: isChecked };
             });
         }
         try {
-            await database.ref(`student_progress/${pureP}/${courseKey}`).update(updates);
+            await database.ref(`student_progress/${pureP}/${configKey}`).update(updates);
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -3792,90 +3927,135 @@
         if (el) el.style.display = el.style.display === 'block' ? 'none' : 'block';
     };
 
-    window.saveAdminTaskComment = async function(phone, courseKey, taskKey) {
-        let pureP = extractPureNumber(phone);
-        let inputEl = document.getElementById(`comment-input-${courseKey}-${taskKey}`);
+    window.saveAdminTaskComment = async function(phone, diplomaId, courseName, taskKey) {
+        const configKey = makeCourseConfigKey(diplomaId, courseName);
+        const pureP = extractPureNumber(phone);
+        const inputEl = document.getElementById(`comment-input-${configKey}-${taskKey}`);
         if (!inputEl) return;
-        let text = inputEl.value.trim();
+        const text = inputEl.value.trim();
         try {
-            await database.ref(`student_progress/${pureP}/${courseKey}/submissions/${taskKey}`).update({ comment: text || null });
+            await database.ref(`student_progress/${pureP}/${configKey}/submissions/${taskKey}`).update({ comment: text || null });
             alert('تم حفظ الملاحظة.');
             selectStudent(phone);
         } catch (e) { alert('خطأ: ' + e.message); }
     };
 
-    function buildLMSUI(phone, completedTasksSet, studentProgressData) {
-        let container = document.getElementById('lms-container'); container.innerHTML = '';
-        Object.keys(LMS_COURSES).forEach(courseKey => {
-            const courseInfo = LMS_COURSES[courseKey]; const progress = calculateProgressDynamic(courseKey, completedTasksSet, studentProgressData);
+    function buildLMSUI(phone, enrolledCourses, completedTasksSet, studentProgressData) {
+        const container = document.getElementById('lms-container');
+        container.innerHTML = '';
+
+        if (!enrolledCourses || enrolledCourses.length === 0) {
+            container.innerHTML = '<div class="empty-state" style="background:white; color:#666; padding:20px; border-radius:8px;">لا توجد كورسات مسجّل بها الطالب</div>';
+            return;
+        }
+
+        enrolledCourses.forEach(enr => {
+            const { diplomaId, diplomaName, courseName, configKey } = enr;
+            const progress = calculateProgressDynamic(diplomaId, courseName, completedTasksSet, studentProgressData);
+            const cfg = progress.cfg;
+            const courseProgress = (studentProgressData && studentProgressData[configKey]) || {};
+
             const isCompleted = progress.percentage === 100 && progress.totalItems > 0;
             const checkMark = isCompleted ? '<span style="color: #28a745; font-size: 18px;">✅</span>' : '';
-            let selectAllHtml = `<input type="checkbox" style="margin-left: 10px; cursor: pointer; accent-color: #28a745; width: 16px; height: 16px;" ${isCompleted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleAllTasks('${phone}', '${courseKey}', this.checked)" title="تحديد الكل">`;
-            let isOpen = openCoursePanels.has(courseKey);
-            let btnClass = isOpen ? 'course-accordion active' : 'course-accordion';
-            let panelDisplay = isOpen ? 'block' : 'none';
-            let accBtn = document.createElement('div'); accBtn.className = btnClass; accBtn.id = `btn-${courseKey}`; accBtn.onclick = () => toggleAccordion(`btn-${courseKey}`, `panel-${courseKey}`);
-            accBtn.innerHTML = `<div class="course-title-area"><div style="display:flex; justify-content:space-between; align-items:center;"><div style="display:flex; align-items:center;">${selectAllHtml}<span style="margin-right:5px;">${courseInfo.title} ${checkMark}</span></div><span style="font-size:13px; color:#666;" id="text-prog-${courseKey}">${progress.completed} / ${progress.totalItems}</span></div><div class="progress-container"><div class="progress-bar" id="bar-prog-${courseKey}" style="width: ${progress.percentage}%;"></div></div></div>`;
-            let panel = document.createElement('div'); panel.className = 'course-panel'; panel.id = `panel-${courseKey}`; panel.style.display = panelDisplay;
-            let tasksGrid = document.createElement('div'); tasksGrid.className = 'tasks-grid';
-            let courseSubmissions = (studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey].submissions) ? studentProgressData[courseKey].submissions : {};
-            for (let i = 1; i <= courseInfo.tasks; i++) {
-                let taskKey = `task_${i}`;
-                let taskName = `Task ${i}`;
-                let inSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has(taskName);
-                let inManual = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey][taskKey];
-                let isTaskCompleted = inSession || inManual;
-                let icon = isTaskCompleted ? '✅' : '⏳'; let color = isTaskCompleted ? '#28a745' : '#999';
-                let subData = courseSubmissions[taskKey];
+            const selectAllHtml = `<input type="checkbox" style="margin-left: 10px; cursor: pointer; accent-color: #28a745; width: 16px; height: 16px;" ${isCompleted ? 'checked' : ''} onclick="event.stopPropagation()" onchange="toggleAllTasks('${phone}', '${diplomaId}', '${courseName}', this.checked)" title="تحديد الكل">`;
+
+            const accId = `btn-${configKey}`;
+            const panelId = `panel-${configKey}`;
+            const isOpen = openCoursePanels.has(configKey);
+            const btnClass = isOpen ? 'course-accordion active' : 'course-accordion';
+            const panelDisplay = isOpen ? 'block' : 'none';
+
+            const accBtn = document.createElement('div');
+            accBtn.className = btnClass;
+            accBtn.id = accId;
+            accBtn.onclick = () => toggleAccordion(accId, panelId);
+            accBtn.innerHTML = `
+                <div class="course-title-area">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display:flex; align-items:center;">
+                            ${selectAllHtml}
+                            <span style="margin-right:5px;">${courseName} <span style="font-size:11px; color:#999; font-weight:normal;">(${diplomaName})</span> ${checkMark}</span>
+                        </div>
+                        <span style="font-size:13px; color:#666;">${progress.completed} / ${progress.totalItems}</span>
+                    </div>
+                    <div class="progress-container"><div class="progress-bar" style="width: ${progress.percentage}%;"></div></div>
+                </div>
+            `;
+
+            const panel = document.createElement('div');
+            panel.className = 'course-panel';
+            panel.id = panelId;
+            panel.style.display = panelDisplay;
+
+            const tasksGrid = document.createElement('div');
+            tasksGrid.className = 'tasks-grid';
+            const courseSubmissions = courseProgress.submissions || {};
+
+            for (let i = 1; i <= progress.totalTasks; i++) {
+                const taskKey = `task_${i}`;
+                const taskName = `Task ${i}`;
+                const inSession = completedTasksSet[configKey] && completedTasksSet[configKey].has(taskName);
+                const inManual = courseProgress[taskKey];
+                const isTaskCompleted = inSession || inManual;
+                const icon = isTaskCompleted ? '✅' : '⏳';
+                const color = isTaskCompleted ? '#28a745' : '#999';
+                const subData = courseSubmissions[taskKey];
                 let subHtmlIcons = '';
                 let subHtmlBox = '';
                 if (!isTaskCompleted && subData && subData.link) {
-                    let safeLink = subData.link.replace(/"/g, '&quot;');
-                    let existingComment = subData.comment ? subData.comment.replace(/"/g, '&quot;') : '';
-                    let chatBoxId = `chat-box-${courseKey}-${taskKey}`;
-                    let commentIndicatorColor = subData.comment ? '#ff3b30' : '#3b1e5a';
+                    const safeLink = subData.link.replace(/"/g, '&quot;');
+                    const existingComment = subData.comment ? subData.comment.replace(/"/g, '&quot;') : '';
+                    const chatBoxId = `chat-box-${configKey}-${taskKey}`;
+                    const commentIndicatorColor = subData.comment ? '#ff3b30' : '#3b1e5a';
                     subHtmlIcons = `<div style="display:flex; align-items:center; gap:8px;"><a href="${safeLink}" target="_blank" onclick="event.stopPropagation();" style="text-decoration:none; font-size:15px; line-height:1;" title="فتح الرابط">🔗</a><span onclick="event.stopPropagation(); toggleTaskCommentBox('${chatBoxId}')" style="cursor:pointer; font-size:15px; line-height:1; color:${commentIndicatorColor};" title="ملاحظة">💬</span></div>`;
-                    subHtmlBox = `<div id="${chatBoxId}" class="chat-bubble-box" onclick="event.stopPropagation();" style="display:${subData.comment ? 'block' : 'none'}; width: 100%; margin-top: 5px;"><input type="text" id="comment-input-${courseKey}-${taskKey}" class="chat-bubble-input" value="${existingComment}" placeholder="ملاحظة..."><button type="button" class="chat-bubble-send" onclick="saveAdminTaskComment('${phone}', '${courseKey}', '${taskKey}')">إرسال</button></div>`;
+                    subHtmlBox = `<div id="${chatBoxId}" class="chat-bubble-box" onclick="event.stopPropagation();" style="display:${subData.comment ? 'block' : 'none'}; width: 100%; margin-top: 5px;"><input type="text" id="comment-input-${configKey}-${taskKey}" class="chat-bubble-input" value="${existingComment}" placeholder="ملاحظة..."><button type="button" class="chat-bubble-send" onclick="saveAdminTaskComment('${phone}', '${diplomaId}', '${courseName}', '${taskKey}')">إرسال</button></div>`;
                 }
-                tasksGrid.innerHTML += `<div class="task-item" style="color:${color}; width: 100%; box-sizing: border-box;"><div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><div style="cursor:pointer; display:flex; align-items:center; gap:5px;" onclick="toggleLegacyTask('${phone}', '${courseKey}', '${taskKey}', ${!!isTaskCompleted})" title="تعديل"><span style="font-size:13px;">${icon}</span> ${taskName}</div>${subHtmlIcons}</div>${subHtmlBox}</div>`;
+                tasksGrid.innerHTML += `<div class="task-item" style="color:${color}; width: 100%; box-sizing: border-box;"><div style="display:flex; justify-content:space-between; align-items:center; width:100%;"><div style="cursor:pointer; display:flex; align-items:center; gap:5px;" onclick="toggleLegacyTask('${phone}', '${diplomaId}', '${courseName}', '${taskKey}', ${!!isTaskCompleted})" title="تعديل"><span style="font-size:13px;">${icon}</span> ${taskName}</div>${subHtmlIcons}</div>${subHtmlBox}</div>`;
             }
             panel.appendChild(tasksGrid);
-            if (courseInfo.exam) {
-                let examInSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has("Final Exam");
-                let examInManual = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey]['exam'];
-                let isExamCompleted = examInSession || examInManual;
-                let eIcon = isExamCompleted ? '✅' : '⏳'; let eColor = isExamCompleted ? '#cc0000' : '#999';
-                let examDiv = document.createElement('div');
+
+            if (cfg.exam) {
+                const examInSession = completedTasksSet[configKey] && completedTasksSet[configKey].has("Final Exam");
+                const examInManual = courseProgress['exam'];
+                const isExamCompleted = examInSession || examInManual;
+                const eIcon = isExamCompleted ? '✅' : '⏳';
+                const eColor = isExamCompleted ? '#cc0000' : '#999';
+                const examDiv = document.createElement('div');
                 examDiv.className = 'exam-item';
                 examDiv.style = `cursor:pointer; color:${eColor};`;
-                examDiv.onclick = () => toggleLegacyTask(phone, courseKey, 'exam', !!isExamCompleted);
+                examDiv.onclick = () => toggleLegacyTask(phone, diplomaId, courseName, 'exam', !!isExamCompleted);
                 examDiv.innerHTML = `<span style="font-size:13px;">${eIcon}</span> Final Exam`;
                 panel.appendChild(examDiv);
             }
-            let extraTasksObj = studentProgressData && studentProgressData[courseKey] && studentProgressData[courseKey].extra_tasks;
-            let extraTasksContainer = document.createElement('div');
+
+            const extraTasksObj = courseProgress.extra_tasks;
+            const extraTasksContainer = document.createElement('div');
             extraTasksContainer.style = 'display:flex; flex-wrap:wrap; gap:8px; margin-top:10px;';
             if (extraTasksObj) {
-                let extraKeys = Object.keys(extraTasksObj);
-                extraKeys.forEach((key, index) => {
-                    let item = extraTasksObj[key];
-                    let desc = (typeof item === 'object' && item !== null) ? (item.desc || '') : String(item);
-                    let taskName = `Task +${index + 1}`;
-                    let inSession = completedTasksSet[courseKey] && completedTasksSet[courseKey].has(taskName);
-                    let inManual = (typeof item === 'object' && item !== null) ? !!item.completed : false;
-                    let isTaskCompleted = inSession || inManual;
-                    let icon = isTaskCompleted ? '✅' : '⏳'; let color = isTaskCompleted ? '#28a745' : '#999';
-                    let bg = isTaskCompleted ? '#e8f5e9' : '#f9f9f9'; let border = isTaskCompleted ? '#c8e6c9' : '#ddd';
-                    let safeDesc = desc.replace(/'/g, "\\'").replace(/"/g, '&quot;');
-                    extraTasksContainer.innerHTML += `<div class="task-item" style="color:${color}; background:${bg}; padding:5px 8px; border:1px solid ${border}; display:inline-flex; flex-direction:row; align-items:center; gap:6px;"><span style="cursor:pointer; display:inline-flex; align-items:center; gap:4px;" onclick="toggleExtraTask('${phone}', '${courseKey}', '${key}', '${safeDesc}', ${isTaskCompleted})" title="${safeDesc}"><span style="font-size:13px;">${icon}</span> ${taskName}</span><span onclick="deleteExtraTask('${phone}', '${courseKey}', '${key}')" style="color:#cc0000; cursor:pointer; font-size:12px; font-weight:bold; padding-right:4px; border-right:1px solid #ccc;" title="حذف">✖</span></div>`;
+                Object.keys(extraTasksObj).forEach((key, index) => {
+                    const item = extraTasksObj[key];
+                    const desc = (typeof item === 'object' && item !== null) ? (item.desc || '') : String(item);
+                    const taskName = `Task +${index + 1}`;
+                    const inSession = completedTasksSet[configKey] && completedTasksSet[configKey].has(taskName);
+                    const inManual = (typeof item === 'object' && item !== null) ? !!item.completed : false;
+                    const isTaskCompleted = inSession || inManual;
+                    const icon = isTaskCompleted ? '✅' : '⏳';
+                    const color = isTaskCompleted ? '#28a745' : '#999';
+                    const bg = isTaskCompleted ? '#e8f5e9' : '#f9f9f9';
+                    const border = isTaskCompleted ? '#c8e6c9' : '#ddd';
+                    const safeDesc = desc.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+                    extraTasksContainer.innerHTML += `<div class="task-item" style="color:${color}; background:${bg}; padding:5px 8px; border:1px solid ${border}; display:inline-flex; flex-direction:row; align-items:center; gap:6px;"><span style="cursor:pointer; display:inline-flex; align-items:center; gap:4px;" onclick="toggleExtraTask('${phone}', '${diplomaId}', '${courseName}', '${key}', '${safeDesc}', ${isTaskCompleted})" title="${safeDesc}"><span style="font-size:13px;">${icon}</span> ${taskName}</span><span onclick="deleteExtraTask('${phone}', '${diplomaId}', '${courseName}', '${key}')" style="color:#cc0000; cursor:pointer; font-size:12px; font-weight:bold; padding-right:4px; border-right:1px solid #ccc;" title="حذف">✖</span></div>`;
                 });
             }
             panel.appendChild(extraTasksContainer);
-            let inputRow = document.createElement('div');
+
+            const inputRow = document.createElement('div');
             inputRow.style = 'display:flex; gap:5px; margin-top: 15px; border-top: 1px dashed #ddd; padding-top: 10px;';
-            inputRow.innerHTML = `<input type="text" id="extra-task-input-${courseKey}" placeholder="وصف التاسك..." style="margin:0; padding:6px; flex:1; font-size:13px; border:1px solid #ccc; border-radius:3px; font-family: Tahoma;"><button onclick="addExtraTask('${phone}', '${courseKey}')" style="background:#28a745; color:white; border:none; padding:6px 13px; border-radius:3px; cursor:pointer; font-weight:bold;">+</button>`;
+            inputRow.innerHTML = `<input type="text" id="extra-task-input-${configKey}" placeholder="وصف التاسك..." style="margin:0; padding:6px; flex:1; font-size:13px; border:1px solid #ccc; border-radius:3px; font-family: Tahoma;"><button onclick="addExtraTask('${phone}', '${diplomaId}', '${courseName}')" style="background:#28a745; color:white; border:none; padding:6px 13px; border-radius:3px; cursor:pointer; font-weight:bold;">+</button>`;
             panel.appendChild(inputRow);
-            container.appendChild(accBtn); container.appendChild(panel);
+
+            container.appendChild(accBtn);
+            container.appendChild(panel);
         });
     }
 
@@ -3885,85 +4065,101 @@
     };
 
     let pendingAttendanceId = null;
+    let pendingAttendanceDiplomaId = null;
     let pendingAttendanceCourse = null;
 
     window.openTaskModal = function(id, course, phoneStr) {
-        if(!course || course === 'غير محدد') { alert('الكورس غير محدد'); return; }
-        pendingAttendanceId = id; pendingAttendanceCourse = course;
-        let phone = extractPureNumber(phoneStr);
-        let courseKey = course === 'Classic Control' ? 'classic_control' : (course === 'PLC' ? 'plc' : 'motor_drive');
-        let limits = LMS_COURSES[courseKey] || {tasks: 0, exam: false};
-        let stProg = allProgress[phone] || {};
-        let currentRecord = allStudents.find(s => s.id === id);
-        let sessionTasks = currentRecord && currentRecord.tasks ? currentRecord.tasks.split('|').map(t=>t.trim()) : [];
-        let allCompletedSet = new Set();
-        let sRecs = allStudents.filter(s => extractPureNumber(s.phone) === phone && !s.canceled && s.attended && s.tasks && s.course === course && s.id !== id);
-        sRecs.forEach(r => { r.tasks.split('|').forEach(t => { if(t.trim()) allCompletedSet.add(t.trim()); }); });
-        let container = document.getElementById('task-checkboxes'); container.innerHTML = '';
+        if (!course || course === 'غير محدد') { alert('الكورس غير محدد'); return; }
+        pendingAttendanceId = id;
+        pendingAttendanceCourse = course;
+
+        const phone = extractPureNumber(phoneStr);
+        const currentRecord = allStudents.find(s => s.id === id);
+        if (!currentRecord) { alert('السجل غير موجود'); return; }
+
+        const studentGroup = extractPureNumber(currentRecord.group);
+        let diplomaId = null;
+        Object.keys(allDiplomas).forEach(dipId => {
+            const dip = allDiplomas[dipId];
+            if (dip && extractPureNumber(dip.number) === studentGroup) diplomaId = dipId;
+        });
+
+        if (!diplomaId) { alert('لم يتم العثور على الدورة المطابقة لرقم المجموعة'); return; }
+        pendingAttendanceDiplomaId = diplomaId;
+
+        const configKey = makeCourseConfigKey(diplomaId, course);
+        const totalTasks = getDynamicTasksCount(diplomaId, course);
+        const cfg = getCourseConfig(diplomaId, course);
+        const stProg = (allProgress[phone] && allProgress[phone][configKey]) || {};
+
+        const sessionTasks = currentRecord.tasks ? currentRecord.tasks.split('|').map(t => t.trim()) : [];
+        const allCompletedSet = new Set();
+        allStudents.filter(s => extractPureNumber(s.phone) === phone && !s.canceled && s.attended && s.tasks && s.course === course && s.id !== id).forEach(r => {
+            r.tasks.split('|').forEach(t => { if (t.trim()) allCompletedSet.add(t.trim()); });
+        });
+
+        const container = document.getElementById('task-checkboxes');
+        container.innerHTML = '';
         let hasTasks = false;
-        for(let i=1; i<=limits.tasks; i++) {
-            let tName = `Task ${i}`;
-            let inManual = stProg[courseKey] && stProg[courseKey][`task_${i}`];
-            let inThisSession = sessionTasks.includes(tName);
+
+        for (let i = 1; i <= totalTasks; i++) {
+            const tName = `Task ${i}`;
+            const inManual = stProg[`task_${i}`];
+            const inThisSession = sessionTasks.includes(tName);
             if (inThisSession || (!allCompletedSet.has(tName) && !inManual)) {
-                let checkedAttr = inThisSession ? "checked" : "";
+                const checkedAttr = inThisSession ? "checked" : "";
                 container.innerHTML += `<label style="background:#f4f4f4; padding:5px 10px; border-radius:5px; border:1px solid #ddd; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:14px;"><input type="checkbox" value="Task ${i}" class="task-cb" style="margin:0;" ${checkedAttr}> Task ${i}</label>`;
                 hasTasks = true;
             }
         }
-        let extraTasksObj = stProg[courseKey] && stProg[courseKey].extra_tasks;
-        if (extraTasksObj) {
-            Object.keys(extraTasksObj).forEach((key, index) => {
-                let item = extraTasksObj[key];
-                let tName = `Task +${index + 1}`;
-                let desc = (typeof item === 'object' && item !== null) ? (item.desc || '') : String(item);
-                let inManual = (typeof item === 'object' && item !== null) ? !!item.completed : false;
-                let inThisSession = sessionTasks.includes(tName);
-                if (inThisSession || (!allCompletedSet.has(tName) && !inManual)) {
-                    let checkedAttr = inThisSession ? "checked" : "";
-                    let safeDesc = desc.replace(/"/g, '&quot;');
-                    container.innerHTML += `<label style="background:#f4f4f4; padding:5px 10px; border-radius:5px; border:1px solid #ddd; display:flex; align-items:center; gap:5px; cursor:pointer; font-size:14px;" title="${safeDesc}"><input type="checkbox" value="${tName}" class="task-cb" style="margin:0;" ${checkedAttr}> ${tName}</label>`;
-                    hasTasks = true;
-                }
-            });
-        }
-        if (limits.exam) {
-            let inManual = stProg[courseKey] && stProg[courseKey]['exam'];
-            let inThisSession = sessionTasks.includes("Final Exam");
+
+        if (cfg.exam) {
+            const inManual = stProg['exam'];
+            const inThisSession = sessionTasks.includes("Final Exam");
             if (inThisSession || (!allCompletedSet.has("Final Exam") && !inManual)) {
-                let checkedAttr = inThisSession ? "checked" : "";
+                const checkedAttr = inThisSession ? "checked" : "";
                 container.innerHTML += `<label style="background:#ffe6e6; padding:5px 10px; border-radius:5px; border:1px solid #ff4d4d; display:flex; align-items:center; gap:5px; cursor:pointer; color:#cc0000; font-weight:bold; font-size:14px;"><input type="checkbox" value="Final Exam" class="task-cb" style="margin:0;" ${checkedAttr}> Final Exam</label>`;
                 hasTasks = true;
             }
         }
-        if(!hasTasks) container.innerHTML = `<div style="text-align:center; width:100%; color:#28a745; font-weight:bold; padding:10px;">(الطالب أتم جميع المهام ✅)</div>`;
+
+        if (!hasTasks) container.innerHTML = `<div style="text-align:center; width:100%; color:#28a745; font-weight:bold; padding:10px;">(الطالب أتم جميع المهام ✅)</div>`;
         document.getElementById('task-course-name').innerText = course;
         document.getElementById('task-modal').style.display = 'flex';
     };
 
     window.saveAttendanceWithTasks = async function() {
-        let selectedTasks = []; document.querySelectorAll('.task-cb:checked').forEach(cb => selectedTasks.push(cb.value));
-        let tasksStr = selectedTasks.join(' | ');
-        let rec = allStudents.find(s => s.id === pendingAttendanceId);
-        await database.ref('students/' + pendingAttendanceId).update({ attended: true, tasks: tasksStr.length > 0 ? tasksStr : null, attended_by: currentAdminName });
+        const selectedTasks = [];
+        document.querySelectorAll('.task-cb:checked').forEach(cb => selectedTasks.push(cb.value));
+        const tasksStr = selectedTasks.join(' | ');
+        const rec = allStudents.find(s => s.id === pendingAttendanceId);
+
+        await database.ref('students/' + pendingAttendanceId).update({
+            attended: true,
+            tasks: tasksStr.length > 0 ? tasksStr : null,
+            attended_by: currentAdminName
+        });
+
         if (rec && selectedTasks.length > 0) {
-            let pureP = extractPureNumber(rec.phone);
-            let courseKey = rec.course === 'Classic Control' ? 'classic_control' : (rec.course === 'PLC' ? 'plc' : 'motor_drive');
-            let subDeletes = {};
+            const pureP = extractPureNumber(rec.phone);
+            const configKey = makeCourseConfigKey(pendingAttendanceDiplomaId, rec.course);
+            const subDeletes = {};
             selectedTasks.forEach(tName => {
                 if (tName.startsWith('Task ') && !tName.includes('+')) {
-                    let num = tName.replace('Task ', '').trim();
+                    const num = tName.replace('Task ', '').trim();
                     subDeletes[`task_${num}`] = null;
                 }
             });
-            if (Object.keys(subDeletes).length > 0) await database.ref(`student_progress/${pureP}/${courseKey}/submissions`).update(subDeletes);
+            if (Object.keys(subDeletes).length > 0) await database.ref(`student_progress/${pureP}/${configKey}/submissions`).update(subDeletes);
         }
         document.getElementById('task-modal').style.display = 'none';
         pendingAttendanceId = null;
+        pendingAttendanceDiplomaId = null;
     };
 
     function cancelTaskSelection() {
         pendingAttendanceId = null;
+        pendingAttendanceDiplomaId = null;
         document.getElementById('task-modal').style.display = 'none';
         document.getElementById('task-checkboxes').innerHTML = '';
     }
@@ -3978,15 +4174,14 @@
         let studentPhone = targetPhone;
         let pureGroupNum = "غير متوفر";
         let validRecords = [];
-        if(allStudentRecords.length > 0) {
+        if (allStudentRecords.length > 0) {
             allStudentRecords.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0));
             latestName = allStudentRecords[allStudentRecords.length - 1].name;
             studentPhone = allStudentRecords[allStudentRecords.length - 1].phone;
             pureGroupNum = extractPureNumber(allStudentRecords[allStudentRecords.length - 1].group);
             validRecords = allStudentRecords.filter(s => !s.canceled && s.date && s.date !== "بدون موعد");
         }
-        let lastAttended = 'لا يوجد حضور'; let attendedRecords = validRecords.filter(s => s.attended);
-        if(attendedRecords.length > 0) { attendedRecords.sort((a,b) => new Date(b.date || 0) - new Date(a.date || 0)); lastAttended = attendedRecords[0].date; }
+        let attendedRecords = validRecords.filter(s => s.attended);
         let absent = validRecords.filter(s => !s.attended && isPeriodPassed(s.date, s.time)).length;
         document.getElementById('report-name').innerText = 'السجل الأكاديمي: ' + latestName;
         let phoneEl = document.getElementById('report-phone');
@@ -4007,15 +4202,27 @@
         let cycleText = cycleCheck.active ? `${cycleCheck.currentDay}/14 (${cycleCheck.absences})` : `0/14 (0)`;
         document.getElementById('report-absence-cycle').innerText = cycleText;
         let tbody = document.getElementById('report-tbody'); tbody.innerHTML = '';
-        let cTasks = { classic_control: new Set(), plc: new Set(), motor_drive: new Set() };
+
+        // نجمع tasks من الحضور
+        const cTasks = {};
+        validRecords.forEach(rec => {
+            if (rec.attended && rec.tasks) {
+                const courseKey = courseNameToKey(rec.course);
+                Object.keys(allDiplomas).forEach(dipId => {
+                    const dip = allDiplomas[dipId];
+                    if (!dip) return;
+                    if (!(dip.courses || []).some(c => courseNameToKey(c.name) === courseKey)) return;
+                    const configKey = `${dipId}_${courseKey}`;
+                    if (!cTasks[configKey]) cTasks[configKey] = new Set();
+                    rec.tasks.split('|').forEach(t => { if (t.trim()) cTasks[configKey].add(t.trim()); });
+                });
+            }
+        });
+
         if (validRecords.length === 0) tbody.innerHTML = `<tr><td colspan="5" style="padding: 10px; color: red; text-align: center; font-weight: bold;">لا توجد مواعيد مسجلة</td></tr>`;
         else {
             validRecords.sort((a,b) => new Date(a.date || 0) - new Date(b.date || 0));
             validRecords.forEach(rec => {
-                if (rec.attended && rec.tasks) {
-                    let cKey = rec.course === 'Classic Control' ? 'classic_control' : (rec.course === 'PLC' ? 'plc' : 'motor_drive');
-                    rec.tasks.split('|').forEach(t => { if(t.trim()) cTasks[cKey].add(t.trim()); });
-                }
                 let statusHTML = '';
                 let tasksStr = rec.tasks ? rec.tasks.split('|').join(' , ') : '';
                 let byStr = rec.attended_by ? ` title="${rec.attended_by}"` : '';
@@ -4032,14 +4239,20 @@
                 tbody.innerHTML += `<tr style="${bgStyle}"><td style="padding: 8px;">${rec.course || ''}</td><td style="padding: 8px;">${rec.date || ''}</td><td style="padding: 8px;">${rec.time || ''}</td><td style="padding: 8px;">${taskHTML}</td><td style="padding: 8px;">${statusHTML}</td></tr>`;
             });
         }
-        buildLMSUI(extractPureNumber(studentPhone), cTasks, studentProgressData);
+
+        const enrolledCourses = getStudentEnrolledCourses(allStudentRecords);
+        buildLMSUI(extractPureNumber(studentPhone), enrolledCourses, cTasks, studentProgressData);
+
         let isVIP = checkIfStudentIsVIP(extractPureNumber(studentPhone), allStudents, studentProgressData);
         let certDel = studentProgressData.cert_delivered || {};
         let deliveredCertsList = [];
-        if (certDel.classic_control) deliveredCertsList.push('Classic Control');
-        if (certDel.plc) deliveredCertsList.push('PLC');
-        if (certDel.motor_drive) deliveredCertsList.push('Motor Drive');
-        if (certDel.automation_control) deliveredCertsList.push('Automation Control');
+        Object.keys(certDel).forEach(k => {
+            if (k.startsWith('diploma_') && certDel[k] === true) {
+                const dipId = k.replace('diploma_', '');
+                const dip = allDiplomas[dipId];
+                if (dip) deliveredCertsList.push(dip.name || dipId);
+            }
+        });
         let vipBadge = document.getElementById('report-vip-status');
         if (deliveredCertsList.length > 0) {
             vipBadge.innerText = '🎓'; vipBadge.title = 'استلم شهادة: ' + deliveredCertsList.join(' + '); vipBadge.style.display = 'block';
@@ -4155,9 +4368,7 @@
                 select.appendChild(opt);
             });
             if (currentVal && namesSet.has(currentVal)) select.value = currentVal;
-        } catch(e) {
-            console.error(e);
-        }
+        } catch(e) { console.error(e); }
     }
 
     window.renderLabTasksCourseInputs = function() {
@@ -4171,12 +4382,11 @@
             return;
         }
 
+        // نجيب courseList من أول دورة بنفس الاسم (لأن lab_course_tasks مفتاحها اسم الدورة)
         let coursesMap = {};
         Object.values(allDiplomas).forEach(d => {
             if ((d.name || '').trim() === diplomaName && d.courses) {
-                d.courses.forEach(c => {
-                    if (!coursesMap[c.name]) coursesMap[c.name] = true;
-                });
+                d.courses.forEach(c => { if (!coursesMap[c.name]) coursesMap[c.name] = true; });
             }
         });
         const courseNames = Object.keys(coursesMap);
@@ -4186,15 +4396,25 @@
             return;
         }
 
+        // نبحث عن diplomaId الأول بنفس الاسم (عشان نعرض الإعدادات)
+        let firstDipId = null;
+        Object.keys(allDiplomas).forEach(dipId => {
+            if (!firstDipId && (allDiplomas[dipId].name || '').trim() === diplomaName) firstDipId = dipId;
+        });
+
         let html = `<div style="background:white; padding:15px; border-radius:8px; border:2px solid #fcc01a;">`;
         html += `<h4 style="margin-top:0; color:#3b1e5a; border-bottom:1px solid #ddd; padding-bottom:8px;">${escapeForAttr(diplomaName)}</h4>`;
         courseNames.forEach(cName => {
             const safeName = escapeForAttr(cName);
+            const safeJsName = escapeForJs(cName);
             const currVal = findCourseTasksSmart(diplomaName, cName);
             const inputId = 'lab-tasks-input-' + safeName.replace(/[^a-zA-Z0-9]/g, '_');
-            html += `<div class="lab-tasks-course-row">
+            const cfg = firstDipId ? getCourseConfig(firstDipId, cName) : { limit: 8, exam: false, upcomingLimit: 0 };
+            html += `<div class="lab-tasks-course-row" style="flex-wrap:wrap;">
                 <label>${safeName}</label>
                 <input type="number" min="0" step="1" id="${inputId}" value="${currVal}" placeholder="عدد التاسكات" data-course-name="${safeName}">
+                <button type="button" class="admin-btn" style="padding:6px 10px; font-size:12px; margin:0;" onclick="openCourseConfigModalByName('${safeJsName}')" title="إعدادات الكورس (السعة/Exam)">⚙️</button>
+                <button type="button" class="admin-btn" style="padding:6px 10px; font-size:12px; margin:0; background-color:#0066cc;" onclick="openPdfConfigModalByName('${safeJsName}')" title="Tasks PDF">📄</button>
             </div>`;
         });
         html += `<button type="button" class="add-btn" style="margin-top:10px;" onclick="saveLabCourseTasksForDiploma('${escapeForJs(diplomaName)}')">حفظ تاسكات هذه الدورة</button>`;
@@ -4214,46 +4434,101 @@
         });
         try {
             await database.ref('lab_course_tasks/' + diplomaName).update(updates);
-            alert('تم حفظ تاسكات الدورة ✅\n\nملاحظة: مودال "Tasks PDF" هياخد العدد الجديد تلقائيًا في المرة الجاية اللي يفتح فيها.');
-        } catch(e) { 
+            alert('تم حفظ تاسكات الدورة ✅\n\nملاحظة: مودال "Tasks PDF" هياخد العدد الجديد تلقائيًا.');
+        } catch(e) {
             console.error('خطأ في الحفظ:', e);
-            alert('خطأ: ' + e.message + '\n\nتأكد من إضافة "lab_course_tasks" في Firebase Rules:\n"lab_course_tasks": {\n  ".read": true,\n  ".write": "auth != null"\n}'); 
+            alert('خطأ: ' + e.message + '\n\nتأكد من إضافة "lab_course_tasks" في Firebase Rules:\n"lab_course_tasks": {\n  ".read": true,\n  ".write": "auth != null"\n}');
         }
     };
 
-    /* ============ PDF TASKS CONFIG (للأدمن) ============ */
-    let currentEditingPdfCourse = null;
+    /* ============ Course Config Modal (لكل كورس في كل دورة) ============ */
+    let editingConfigDiplomaId = null;
+    let editingConfigCourseName = null;
 
-    // ✅ بيرجع عدد التاسكات الديناميكي (آخر قيمة محفوظة من إدارة تاسكات المعمل)
-    function getDynamicTasksCount(courseKey) {
-        const course = LMS_COURSES[courseKey];
-        if (!course) return 0;
+    window.openCourseConfigModal = function(courseName) {
+        // من صفحة تفاصيل الدورة
+        if (!currentDiplomaId) return;
+        editingConfigDiplomaId = currentDiplomaId;
+        editingConfigCourseName = courseName;
+        fillCourseConfigModal();
+    };
 
-        const targetCourseName = String(course.title || '').trim().toLowerCase();
-        let lastSavedTasks = -1;
-
-        Object.keys(labCourseTasks || {}).forEach(diplomaName => {
-            const coursesObj = labCourseTasks[diplomaName] || {};
-            Object.keys(coursesObj).forEach(cName => {
-                if (String(cName).trim().toLowerCase() === targetCourseName) {
-                    const val = coursesObj[cName];
-                    if (val && typeof val === 'object' && val.tasks !== undefined) {
-                        const num = parseInt(val.tasks) || 0;
-                        if (num >= 0) lastSavedTasks = num;
-                    }
-                }
-            });
+    window.openCourseConfigModalByName = function(courseName) {
+        // من صفحة إعدادات النظام - نبحث عن أول diplomaId بنفس اسم الدورة المختارة
+        const select = document.getElementById('lab-tasks-diploma-select');
+        const diplomaName = select.value;
+        if (!diplomaName) { alert('اختر دورة أولاً'); return; }
+        let firstDipId = null;
+        Object.keys(allDiplomas).forEach(dipId => {
+            if (!firstDipId && (allDiplomas[dipId].name || '').trim() === diplomaName) firstDipId = dipId;
         });
+        if (!firstDipId) { alert('الدورة غير موجودة'); return; }
+        editingConfigDiplomaId = firstDipId;
+        editingConfigCourseName = courseName;
+        fillCourseConfigModal();
+    };
 
-        return lastSavedTasks >= 0 ? lastSavedTasks : (course.tasks || 0);
+    function fillCourseConfigModal() {
+        if (!editingConfigDiplomaId || !editingConfigCourseName) return;
+        const dip = allDiplomas[editingConfigDiplomaId];
+        const cfg = getCourseConfig(editingConfigDiplomaId, editingConfigCourseName);
+        document.getElementById('course-config-title').innerText = `${editingConfigCourseName} - ${dip ? dip.name : ''}`;
+        document.getElementById('course-config-limit').value = cfg.limit;
+        document.getElementById('course-config-upcoming').value = cfg.upcomingLimit;
+        document.getElementById('course-config-exam').checked = cfg.exam;
+        document.getElementById('course-config-modal').style.display = 'flex';
     }
 
-    window.openPdfConfigModal = async function(courseKey) {
-        const course = LMS_COURSES[courseKey];
-        if (!course) return;
-        currentEditingPdfCourse = courseKey;
+    window.closeCourseConfigModal = function() {
+        editingConfigDiplomaId = null;
+        editingConfigCourseName = null;
+        document.getElementById('course-config-modal').style.display = 'none';
+    };
 
-        // ✅ نجيب أحدث lab_course_tasks قبل حساب العدد
+    window.saveCourseConfig = async function() {
+        if (!editingConfigDiplomaId || !editingConfigCourseName) return;
+        const limit = parseInt(document.getElementById('course-config-limit').value) || 8;
+        const upcoming = parseInt(document.getElementById('course-config-upcoming').value) || 0;
+        const exam = document.getElementById('course-config-exam').checked;
+        const configKey = makeCourseConfigKey(editingConfigDiplomaId, editingConfigCourseName);
+        try {
+            await database.ref('settings/diploma_course_config/' + configKey).update({
+                limit, upcomingLimit: upcoming, exam
+            });
+            alert('تم حفظ إعدادات الكورس ✅');
+            closeCourseConfigModal();
+            if (currentDiplomaId && document.getElementById('diploma-detail-view').style.display === 'block') {
+                renderDiplomaCoursesConfig();
+            }
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    /* ============ PDF TASKS CONFIG ============ */
+    let currentEditingPdfDiplomaId = null;
+    let currentEditingPdfCourseName = null;
+
+    window.openPdfConfigModalForDiploma = function(courseName) {
+        if (!currentDiplomaId) return;
+        openPdfConfigModal(currentDiplomaId, courseName);
+    };
+
+    window.openPdfConfigModalByName = function(courseName) {
+        const select = document.getElementById('lab-tasks-diploma-select');
+        const diplomaName = select.value;
+        if (!diplomaName) { alert('اختر دورة أولاً'); return; }
+        let firstDipId = null;
+        Object.keys(allDiplomas).forEach(dipId => {
+            if (!firstDipId && (allDiplomas[dipId].name || '').trim() === diplomaName) firstDipId = dipId;
+        });
+        if (!firstDipId) { alert('الدورة غير موجودة'); return; }
+        openPdfConfigModal(firstDipId, courseName);
+    };
+
+    window.openPdfConfigModal = async function(diplomaId, courseName) {
+        currentEditingPdfDiplomaId = diplomaId;
+        currentEditingPdfCourseName = courseName;
+
+        // نجيب أحدث lab_course_tasks
         try {
             const snap = await database.ref('lab_course_tasks').get();
             labCourseTasks = snap.exists() ? snap.val() : {};
@@ -4261,21 +4536,24 @@
             console.warn('تعذّر تحديث lab_course_tasks:', e);
         }
 
-        const dynamicTaskCount = getDynamicTasksCount(courseKey);
+        const dip = allDiplomas[diplomaId];
+        const diplomaName = dip ? (dip.name || '') : '';
+        const dynamicTaskCount = findCourseTasksSmart(diplomaName, courseName);
+        const cfg = getCourseConfig(diplomaId, courseName);
 
-        document.getElementById('pdf-modal-title').innerText = `محتوى كورس: ${course.title} (عدد التاسكات: ${dynamicTaskCount})`;
+        document.getElementById('pdf-modal-title').innerText = `محتوى كورس: ${courseName} - ${diplomaName} (عدد التاسكات: ${dynamicTaskCount})`;
         document.getElementById('pdf-file-input').value = '';
 
         const container = document.getElementById('pdf-tasks-list');
         container.innerHTML = '';
 
         if (dynamicTaskCount === 0) {
-            container.innerHTML = '<div style="text-align:center; color:#cc0000; padding:20px; font-weight:bold;">⚠️ عدد التاسكات لهذا الكورس = 0.<br>روح لـ "إدارة تاسكات المعمل" وحدد العدد الأول.</div>';
+            container.innerHTML = '<div style="text-align:center; color:#cc0000; padding:20px; font-weight:bold;">⚠️ عدد التاسكات لهذا الكورس = 0.<br>حدد العدد من "إدارة تاسكات المعمل" الأول.</div>';
             document.getElementById('pdf-config-modal').style.display = 'flex';
             return;
         }
 
-        const pdfTasks = course.pdfTasks || {};
+        const pdfTasks = cfg.pdfTasks || {};
 
         for (let i = 1; i <= dynamicTaskCount; i++) {
             const tKey = `task_${i}`;
@@ -4313,7 +4591,8 @@
     };
 
     window.closePdfConfigModal = function() {
-        currentEditingPdfCourse = null;
+        currentEditingPdfDiplomaId = null;
+        currentEditingPdfCourseName = null;
         document.getElementById('pdf-config-modal').style.display = 'none';
     };
 
@@ -4349,12 +4628,9 @@
     }
 
     window.savePdfConfigData = async function() {
-        if (!currentEditingPdfCourse) return;
-        const courseKey = currentEditingPdfCourse;
-        const course = LMS_COURSES[courseKey];
-        const btn = document.getElementById('save-pdf-config-btn');
-        const fileInput = document.getElementById('pdf-file-input');
-        const file = fileInput.files[0];
+        if (!currentEditingPdfDiplomaId || !currentEditingPdfCourseName) return;
+        const diplomaId = currentEditingPdfDiplomaId;
+        const courseName = currentEditingPdfCourseName;
 
         try {
             const snap = await database.ref('lab_course_tasks').get();
@@ -4363,11 +4639,18 @@
             console.warn('تعذّر تحديث lab_course_tasks:', e);
         }
 
-        const dynamicTaskCount = getDynamicTasksCount(courseKey);
+        const dip = allDiplomas[diplomaId];
+        const diplomaName = dip ? (dip.name || '') : '';
+        const dynamicTaskCount = findCourseTasksSmart(diplomaName, courseName);
+
         if (dynamicTaskCount === 0) {
             alert('عدد التاسكات = 0. حدد العدد من "إدارة تاسكات المعمل" أولاً.');
             return;
         }
+
+        const btn = document.getElementById('save-pdf-config-btn');
+        const fileInput = document.getElementById('pdf-file-input');
+        const file = fileInput.files[0];
 
         btn.disabled = true;
         btn.innerText = 'جاري المعالجة والحفظ...';
@@ -4383,7 +4666,9 @@
                 pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
             }
 
-            const existingPdfTasks = course.pdfTasks || {};
+            const configKey = makeCourseConfigKey(diplomaId, courseName);
+            const oldCfg = diplomaCourseConfig[configKey] || {};
+            const existingPdfTasks = oldCfg.pdfTasks || {};
             const updatedPdfTasks = {};
 
             Object.keys(existingPdfTasks).forEach(k => {
@@ -4431,8 +4716,10 @@
                 }
             }
 
-            await database.ref(`settings/courses/${courseKey}/pdfTasks`).set(updatedPdfTasks);
-            LMS_COURSES[courseKey].pdfTasks = updatedPdfTasks;
+            await database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`).set(updatedPdfTasks);
+            if (!diplomaCourseConfig[configKey]) diplomaCourseConfig[configKey] = {};
+            diplomaCourseConfig[configKey].pdfTasks = updatedPdfTasks;
+
             alert(`تم حفظ ومعالجة بيانات ${dynamicTaskCount} تاسك بنجاح ✅`);
             closePdfConfigModal();
         } catch (err) {
@@ -4454,44 +4741,6 @@
         if (lateOffsetContainer) lateOffsetContainer.style.display = isLateBookingBlocked ? 'block' : 'none';
         const lateOffsetInput = document.getElementById('late-booking-offset');
         if (lateOffsetInput) lateOffsetInput.value = lateBookingOffsetHours;
-
-        let coursesContainer = document.getElementById('courses-settings-container');
-        if (coursesContainer) {
-            coursesContainer.innerHTML = '';
-            Object.values(LMS_COURSES).forEach(c => {
-                let isExam = c.exam ? "checked" : "";
-                let upLim = c.upcomingLimit || 0;
-                const dynTasks = getDynamicTasksCount(c.key);
-                coursesContainer.innerHTML += `
-                    <div class="settings-card">
-                        <h4>إعدادات: ${c.title}</h4>
-                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
-                            <div style="flex:1; min-width:130px;">
-                                <label style="font-size:13px;">السعة القصوى للفترة:</label>
-                                <input type="number" id="limit-${c.key}" value="${c.limit}" min="1">
-                            </div>
-                            <div style="flex:1; min-width:130px;">
-                                <label style="font-size:13px;">عدد tasks القادمة:</label>
-                                <input type="number" id="upcoming-${c.key}" value="${upLim}" min="0">
-                            </div>
-                            <div style="flex:1; min-width:130px;">
-                                <label style="font-size:13px;">عدد التاسكات:</label>
-                                <div style="padding:9px 12px; background:rgba(255,255,255,0.1); border-radius:5px; text-align:center; font-weight:bold; color:#fcc01a; margin-top:8px;">
-                                    ${dynTasks}
-                                    <div style="font-size:10px; color:#ccc; font-weight:normal;">من "إدارة تاسكات المعمل"</div>
-                                </div>
-                            </div>
-                        </div>
-                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px dashed rgba(255,255,255,0.2); padding-top:10px;">
-                            <label style="font-size:13px; display:flex; align-items:center; gap:5px; margin:0; color:white;">
-                                <input type="checkbox" id="exam-${c.key}" ${isExam} style="width:16px; margin:0;"> تفعيل الاختبار النهائي
-                            </label>
-                            <button type="button" class="admin-btn" style="padding:8px 15px; font-size:13px;" onclick="openPdfConfigModal('${c.key}')">Tasks PDF</button>
-                        </div>
-                    </div>
-                `;
-            });
-        }
 
         let supportContainer = document.getElementById('support-settings-container');
         if (supportContainer) {
@@ -4533,19 +4782,6 @@
             const lateOffsetVal = parseFloat(document.getElementById('late-booking-offset').value) || 0;
             await database.ref('settings/lateBookingOffset').set(lateOffsetVal);
 
-            const updates = {};
-            Object.values(LMS_COURSES).forEach(c => {
-                const limEl = document.getElementById(`limit-${c.key}`);
-                const upEl = document.getElementById(`upcoming-${c.key}`);
-                const examEl = document.getElementById(`exam-${c.key}`);
-                if (limEl) updates[`${c.key}/limit`] = parseInt(limEl.value) || 1;
-                if (upEl) updates[`${c.key}/upcomingLimit`] = parseInt(upEl.value) || 0;
-                if (examEl) updates[`${c.key}/exam`] = examEl.checked;
-            });
-            if (Object.keys(updates).length > 0) {
-                await database.ref('settings/courses').update(updates);
-            }
-
             const labPhoneEl = document.getElementById('setting-lab-phone');
             if (labPhoneEl) await database.ref('settings/lab_phone').set(labPhoneEl.value.trim());
 
@@ -4560,7 +4796,7 @@
                 await database.ref('settings/messages').update(msgsUpdate);
             }
 
-            alert('تم حفظ كافة إعدادات النظام بنجاح ✅\n\nعدد التاسكات بيتعدّل من "إدارة تاسكات المعمل".');
+            alert('تم حفظ كافة إعدادات النظام بنجاح ✅');
         } catch(e) { alert('خطأ: ' + e.message); }
     };
 
