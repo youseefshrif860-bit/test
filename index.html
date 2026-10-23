@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
+    <!-- NEW SYSTEM: all Firebase application data is isolated under /new_system -->
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
@@ -1336,7 +1337,7 @@
             let updates = {};
             let prefix = `${y}-${monthStr}`;
             allStudents.filter(s => s.date && s.date.startsWith(prefix)).forEach(student => updates[student.id] = null);
-            database.ref('students').update(updates).then(() => {
+            database.ref('new_system/students').update(updates).then(() => {
                 alert('تم الحذف بنجاح.');
                 renderCalendar();
             }).catch(e => alert(e.message));
@@ -1433,7 +1434,7 @@
         document.getElementById('dip-edit-dates-modal').style.display = 'flex';
 
         try {
-            const snap = await database.ref('diploma_students/' + id).get();
+            const snap = await database.ref('new_system/diploma_students/' + id).get();
             const students = snap.exists() ? snap.val() : {};
             const count = Object.keys(students).length;
             const totalPaid = Object.values(students).reduce((sum, st) => sum + (parseInt(st.paid) || 0), 0);
@@ -1478,7 +1479,7 @@
         const endVal = document.getElementById('edit-dip-end').value;
         if (editingLabDipId) {
             try {
-                await database.ref('diplomas/' + editingLabDipId).update({
+                await database.ref('new_system/diplomas/' + editingLabDipId).update({
                     start_date: startVal || null,
                     end_date_lab: endVal || null
                 });
@@ -1491,7 +1492,7 @@
         }
         if (!editingDipId) return;
         try {
-            await database.ref('diplomas/' + editingDipId).update({
+            await database.ref('new_system/diplomas/' + editingDipId).update({
                 start_date: startVal || null,
                 end_date_courses: endVal || null
             });
@@ -1582,7 +1583,7 @@
 
     async function initPublicSettingsOnce() {
         await runWithOnlineConnection(async () => {
-            const snap = await database.ref('settings').get();
+            const snap = await database.ref('new_system/settings').get();
             if (snap.exists()) {
                 const s = snap.val();
                 if (s.lab_phone !== undefined) globalLabPhone = s.lab_phone;
@@ -1685,139 +1686,91 @@
         clearTimeout(idleConnectionTimer);
         database.goOnline();
 
-        // مهم: لا نعيد تعيين currentStudentRecords من مصدر واحد.
-        // students و student_appointments مصدران لنفس المواعيد،
-        // لذلك ندمجهما معًا حتى لا يختفي موعد قديم عند إضافة موعد جديد.
-        let liveStudentsRecords = [];
-        let indexedAppointmentRecords = [];
-        let progressDataLoaded = false;
-        let diplomaDataLoaded = false;
+        const studentsRef = database.ref('new_system/students');
+        const studentsCallback = studentsRef.on('value', snap => {
+            if (!currentStudentPhone) return;
+            let allSt = [];
+            if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
 
-        const normalizeAppointment = (id, data) => ({
-            id: id,
-            ...data,
-            phone: extractPureNumber(data.phone || currentStudentPhone)
-        });
-
-        const getSelectedCourseKeys = () => {
+            // تحميل مواعيد الطالب من Firebase بعد كل دخول.
+            // نعتمد على الهاتف + رقم الدورة، ومع السجلات القديمة التي لا تحتوي
+            // على group صحيح نتحقق من أن الكورس تابع للدورة الحالية.
             const selectedDiplomas = (currentStudentDiplomaData || []).filter(d =>
                 extractPureNumber(d.dipNumber) === currentStudentGroup
             );
-            const keys = new Set();
-            selectedDiplomas.forEach(d => (d.courses || []).forEach(c => {
-                keys.add(courseNameToKey(c.name));
-            }));
-            return keys;
-        };
+            const selectedCourseKeys = new Set();
+            selectedDiplomas.forEach(d => (d.courses || []).forEach(c =>
+                selectedCourseKeys.add(courseNameToKey(c.name))
+            ));
 
-        const isValidStudentAppointment = (record) => {
-            if (!record) return false;
-            if (extractPureNumber(record.phone) !== currentStudentPhone) return false;
-            if (record.canceled === true) return false;
-            if (!record.date || record.date === 'بدون موعد') return false;
-
-            const sameGroup = extractPureNumber(record.group) === currentStudentGroup;
-            const selectedCourseKeys = getSelectedCourseKeys();
-            const sameCourse = selectedCourseKeys.has(courseNameToKey(record.course || ''));
-
-            return sameGroup || sameCourse;
-        };
-
-        const refreshStudentRecords = () => {
-            if (!currentStudentPhone) return;
-
-            const merged = new Map();
-
-            // أولاً: المواعيد الموجودة في students.
-            liveStudentsRecords.forEach(record => {
-                if (!record || !record.id) return;
-                if (!isValidStudentAppointment(record)) return;
-                merged.set(record.id, { ...record });
+            let serverRecords = allSt.filter(s => {
+                if (extractPureNumber(s.phone) !== currentStudentPhone) return false;
+                if (s.canceled || !s.date || s.date === "بدون موعد") return false;
+                const sameGroup = extractPureNumber(s.group) === currentStudentGroup;
+                const legacySameCourse = selectedCourseKeys.has(courseNameToKey(s.course || ''));
+                return sameGroup || legacySameCourse;
             });
 
-            // ثانيًا: index الخاص بالطالب.
-            // لو الموعد موجود هنا وليس في students لا نحذفه من الواجهة.
-            indexedAppointmentRecords.forEach(record => {
-                if (!record || !record.id) return;
-                if (!isValidStudentAppointment(record)) return;
-
-                const old = merged.get(record.id);
-                merged.set(record.id, old ? { ...old, ...record } : { ...record });
+            let serverIds = new Set(serverRecords.map(r => r.id));
+            currentStudentRecords.forEach(r => {
+                if (locallyAddedIds.has(r.id) && !serverIds.has(r.id)) {
+                    serverRecords.push(r);
+                }
             });
 
-            // نحتفظ مؤقتًا بأي موعد أُضيف للتو إلى أن يصل Firebase listener.
-            currentStudentRecords.forEach(record => {
-                if (!record || !record.id || !locallyAddedIds.has(record.id)) return;
-                if (!isValidStudentAppointment(record)) return;
-                if (!merged.has(record.id)) merged.set(record.id, { ...record });
-            });
+            locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
 
-            currentStudentRecords = Array.from(merged.values());
+            currentStudentRecords = serverRecords;
             currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
-
-            locallyAddedIds.forEach(id => {
-                if (merged.has(id)) locallyAddedIds.delete(id);
-            });
 
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
-        };
-
-        const studentsRef = database.ref('students');
-        const studentsCallback = studentsRef.on('value', snap => {
-            if (!currentStudentPhone) return;
-
-            const allSt = [];
-            if (snap.exists()) {
-                snap.forEach(c => allSt.push(normalizeAppointment(c.key, c.val() || {})));
-            }
-
-            liveStudentsRecords = allSt;
-            refreshStudentRecords();
         });
         studentRealtimeRefs.push({ off: () => studentsRef.off('value', studentsCallback) });
 
-        const appointmentRef = database.ref('student_appointments/' + currentStudentPhone);
+        // Listener مخصص لمواعيد الطالب حتى تظل ظاهرة بعد الخروج والدخول.
+        const appointmentRef = database.ref('new_system/student_appointments/' + currentStudentPhone);
         const appointmentCallback = appointmentRef.on('value', snap => {
-            if (!currentStudentPhone) return;
-
-            indexedAppointmentRecords = [];
-            if (snap.exists()) {
-                snap.forEach(c => {
-                    indexedAppointmentRecords.push(normalizeAppointment(c.key, c.val() || {}));
-                });
-            }
-
-            refreshStudentRecords();
+            if (!currentStudentPhone || !snap.exists()) return;
+            const indexed = [];
+            snap.forEach(c => {
+                const a = { id: c.key, ...c.val() };
+                if (a.canceled || !a.date || a.date === "بدون موعد") return;
+                const sameGroup = extractPureNumber(a.group) === currentStudentGroup;
+                if (sameGroup) indexed.push(a);
+            });
+            indexed.forEach(a => {
+                const idx = currentStudentRecords.findIndex(r => r.id === a.id);
+                if (idx === -1) currentStudentRecords.push(a);
+                else currentStudentRecords[idx] = { ...currentStudentRecords[idx], ...a };
+            });
+            currentStudentRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+            if (document.getElementById('student-dashboard').style.display !== 'none') renderStudentDashboard();
         });
         studentRealtimeRefs.push({ off: () => appointmentRef.off('value', appointmentCallback) });
 
-        const progRef = database.ref('student_progress/' + currentStudentPhone);
+        const progRef = database.ref('new_system/student_progress/' + currentStudentPhone);
         const progCallback = progRef.on('value', snap => {
             if (!currentStudentPhone) return;
             currentStudentProgress = snap.exists() ? snap.val() : {};
             currentStudentManageProgress = currentStudentProgress;
-            progressDataLoaded = true;
-
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
         });
         studentRealtimeRefs.push({ off: () => progRef.off('value', progCallback) });
 
-        const dipStudentsRef = database.ref('diploma_students');
+        const dipStudentsRef = database.ref('new_system/diploma_students');
         const dipStudentsCallback = dipStudentsRef.on('value', snap => {
             if (!currentStudentPhone) return;
-
             const data = snap.exists() ? snap.val() : {};
             const todayStr = getLocalDateString();
             let matches = [];
-
             Object.keys(data).forEach(dipId => {
                 const stds = data[dipId] || {};
                 Object.keys(stds).forEach(sid => {
-                    const st = stds[sid] || {};
+                    const st = stds[sid];
                     if (extractPureNumber(st.phone) === currentStudentPhone) {
                         matches.push({ diplomaId: dipId, studentId: sid, ...st });
                     }
@@ -1828,10 +1781,8 @@
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
                 if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
-
                 const labStart = dip.start_date;
                 const labEnd = getEndDateLab(dip);
-
                 if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
                 return false;
             }).map(m => ({
@@ -1847,11 +1798,9 @@
                 price: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].price) || 0
             }));
 
-            diplomaDataLoaded = true;
-
-            // إعادة الدمج بعد وصول بيانات الـ diploma لأن فلترة الـ courses
-            // تعتمد عليها للسجلات القديمة التي قد لا تحتوي على group صحيح.
-            refreshStudentRecords();
+            if (document.getElementById('student-dashboard').style.display !== 'none') {
+                renderStudentDashboard();
+            }
         });
         studentRealtimeRefs.push({ off: () => dipStudentsRef.off('value', dipStudentsCallback) });
     }
@@ -1869,7 +1818,7 @@
 
         try {
             await runWithOnlineConnection(async () => {
-                const settingsSnap = await database.ref('settings').get();
+                const settingsSnap = await database.ref('new_system/settings').get();
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
                     if (s.periodsData) globalPeriods = s.periodsData;
@@ -1882,12 +1831,12 @@
                 }
 
                 const [dipSnap, diplomasSnap, studentsSnap, blockSnap, progSnap, appointmentIndexSnap] = await Promise.all([
-                    database.ref('diploma_students').get(),
-                    database.ref('diplomas').get(),
-                    database.ref('students').get(),
-                    database.ref('blocked_phones/' + phone).get(),
-                    database.ref('student_progress/' + phone).get(),
-                    database.ref('student_appointments/' + phone).get()
+                    database.ref('new_system/diploma_students').get(),
+                    database.ref('new_system/diplomas').get(),
+                    database.ref('new_system/students').get(),
+                    database.ref('new_system/blocked_phones/' + phone).get(),
+                    database.ref('new_system/student_progress/' + phone).get(),
+                    database.ref('new_system/student_appointments/' + phone).get()
                 ]);
 
                 const dipStudentsData = dipSnap.exists() ? dipSnap.val() : {};
@@ -1977,7 +1926,7 @@
                     };
                 });
                 if (Object.keys(appointmentIndexUpdates).length) {
-                    database.ref('student_appointments/' + phone).update(appointmentIndexUpdates).catch(()=>{});
+                    database.ref('new_system/student_appointments/' + phone).update(appointmentIndexUpdates).catch(()=>{});
                 }
 
                 if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
@@ -2254,7 +2203,7 @@
 
         try {
             await runWithOnlineConnection(async () => {
-                const snap = await database.ref('students').get();
+                const snap = await database.ref('new_system/students').get();
                 let countInSlot = 0;
                 if (snap.exists()) snap.forEach(c => {
                     let d = c.val();
@@ -2265,7 +2214,7 @@
                 let dup = currentStudentRecords.some(r => r.date === date && r.time === time && !r.canceled);
                 if (dup) { showErrorModal(SYSTEM_MESSAGES.duplicate); return; }
 
-                const blockSnap = await database.ref('blocked_phones/' + currentStudentPhone).get();
+                const blockSnap = await database.ref('new_system/blocked_phones/' + currentStudentPhone).get();
                 if (blockSnap.exists()) { showErrorModal(SYSTEM_MESSAGES.blocked); return; }
 
                 const record = {
@@ -2273,11 +2222,11 @@
                     course: course, date: date, time: time,
                     attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString()
                 };
-                const pushRef = database.ref('students').push();
+                const pushRef = database.ref('new_system/students').push();
                 const newId = pushRef.key;
                 const updates = {};
-                updates['students/' + newId] = record;
-                updates['student_appointments/' + currentStudentPhone + '/' + newId] = record;
+                updates['new_system/students/' + newId] = record;
+                updates['new_system/student_appointments/' + currentStudentPhone + '/' + newId] = record;
                 await database.ref().update(updates);
                 const newRecord = { id: newId, ...record };
 
@@ -2320,7 +2269,7 @@
 
     window.setupAddDiplomaView = async function() {
         try {
-            const snap = await database.ref('diplomas').get();
+            const snap = await database.ref('new_system/diplomas').get();
             allDiplomas = snap.exists() ? snap.val() : {};
 
             const dataList = document.getElementById('diploma-names-list');
@@ -2401,7 +2350,7 @@
         if (courses.length === 0) { alert('يرجى إضافة كورس واحد على الأقل.'); return; }
 
         try {
-            await database.ref('diplomas').push({
+            await database.ref('new_system/diplomas').push({
                 name, number, price, courses,
                 start_date: startDate || null,
                 end_date: endDateCourses || null,
@@ -2429,8 +2378,8 @@
     async function loadAndRenderDiplomas() {
         try {
             const [dipSnap, studentsSnap] = await Promise.all([
-                database.ref('diplomas').get(),
-                database.ref('diploma_students').get()
+                database.ref('new_system/diplomas').get(),
+                database.ref('new_system/diploma_students').get()
             ]);
             allDiplomas = dipSnap.exists() ? dipSnap.val() : {};
             allDiplomaStudents = studentsSnap.exists() ? studentsSnap.val() : {};
@@ -2585,9 +2534,9 @@
     window.deleteDiploma = async function(id) {
         if (!confirm('تأكيد حذف الدورة بكل طلابها؟')) return;
         try {
-            await database.ref('diplomas/' + id).remove();
-            await database.ref('diploma_students/' + id).remove();
-            await database.ref('settings/diploma_course_config/' + id).remove();
+            await database.ref('new_system/diplomas/' + id).remove();
+            await database.ref('new_system/diploma_students/' + id).remove();
+            await database.ref('new_system/settings/diploma_course_config/' + id).remove();
             loadAndRenderDiplomas();
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -2651,7 +2600,7 @@
         if (!dip) return;
         const dipPrice = dip.price || 0;
         try {
-            const snap = await database.ref('diploma_students/' + currentDiplomaId).get();
+            const snap = await database.ref('new_system/diploma_students/' + currentDiplomaId).get();
             const students = snap.exists() ? snap.val() : {};
             const keys = Object.keys(students);
 
@@ -2733,7 +2682,7 @@
 
     window.toggleDiplomaAttendance = async function(studentId, courseName, lectureNum, isChecked) {
         try {
-            const base = `diploma_students/${currentDiplomaId}/${studentId}`;
+            const base = `new_system/diploma_students/${currentDiplomaId}/${studentId}`;
             await database.ref(`${base}/attendance/${courseName}/${lectureNum}`).set(isChecked);
             if (isChecked) {
                 await database.ref(`${base}/attendance_meta/${courseName}/${lectureNum}`).set({
@@ -2776,7 +2725,7 @@
         let setVal = parseInt(document.getElementById('dip-pay-set').value);
 
         try {
-            const snap = await database.ref(`diploma_students/${currentDiplomaId}/${currentPaymentStudentId}/paid`).get();
+            const snap = await database.ref(`new_system/diploma_students/${currentDiplomaId}/${currentPaymentStudentId}/paid`).get();
             let currentPaid = snap.exists() ? parseInt(snap.val()) : 0;
 
             let newTotal = currentPaid;
@@ -2789,7 +2738,7 @@
                 return;
             }
 
-            const base = `diploma_students/${currentDiplomaId}/${currentPaymentStudentId}`;
+            const base = `new_system/diploma_students/${currentDiplomaId}/${currentPaymentStudentId}`;
             await database.ref(`${base}/paid`).set(newTotal);
             await database.ref(`${base}/paid_meta`).set({
                 by: currentAdminName || 'غير معروف',
@@ -2825,7 +2774,7 @@
         const attendance = {};
         (dip.courses || []).forEach(c => { attendance[c.name] = {}; });
         try {
-            await database.ref('diploma_students/' + currentDiplomaId).push({
+            await database.ref('new_system/diploma_students/' + currentDiplomaId).push({
                 name, address, college, phone, attendance, paid: 0, addedAt: new Date().toLocaleString()
             });
             alert('تم إضافة الطالب بنجاح! ✅');
@@ -2837,7 +2786,7 @@
     window.deleteDiplomaStudent = async function(sid) {
         if (!confirm('تأكيد حذف الطالب من الدورة؟')) return;
         try {
-            await database.ref(`diploma_students/${currentDiplomaId}/${sid}`).remove();
+            await database.ref(`new_system/diploma_students/${currentDiplomaId}/${sid}`).remove();
             await renderDiplomaStudents();
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -2854,8 +2803,8 @@
 
         try {
             const [dipSnap, studentsSnap] = await Promise.all([
-                database.ref('diplomas').get(),
-                database.ref('diploma_students').get()
+                database.ref('new_system/diplomas').get(),
+                database.ref('new_system/diploma_students').get()
             ]);
             allDiplomas = dipSnap.exists() ? dipSnap.val() : {};
             allDiplomaStudents = studentsSnap.exists() ? studentsSnap.val() : {};
@@ -3019,7 +2968,7 @@
 
         let students = {};
         try {
-            const snap = await database.ref('diploma_students/' + currentLabDipId).get();
+            const snap = await database.ref('new_system/diploma_students/' + currentLabDipId).get();
             students = snap.exists() ? snap.val() : {};
         } catch(e) {
             container.innerHTML = `<div class="empty-state" style="color:red;">خطأ: ${e.message}</div>`;
@@ -3028,7 +2977,7 @@
 
         let progressMap = {};
         try {
-            const progSnap = await database.ref('student_progress').get();
+            const progSnap = await database.ref('new_system/student_progress').get();
             progressMap = progSnap.exists() ? progSnap.val() : {};
         } catch(e) {}
 
@@ -3159,10 +3108,10 @@
     async function loadCertData() {
         try {
             const [dipSnap, studentsSnap, progSnap, allStSnap] = await Promise.all([
-                database.ref('diplomas').get(),
-                database.ref('diploma_students').get(),
-                database.ref('student_progress').get(),
-                database.ref('students').get()
+                database.ref('new_system/diplomas').get(),
+                database.ref('new_system/diploma_students').get(),
+                database.ref('new_system/student_progress').get(),
+                database.ref('new_system/students').get()
             ]);
             certDataCache.diplomas = dipSnap.exists() ? dipSnap.val() : {};
             certDataCache.students = studentsSnap.exists() ? studentsSnap.val() : {};
@@ -3386,7 +3335,7 @@
             updates[`${purePhone}/cert_delivered/${key}`] = isReceived;
             updates[`${purePhone}/cert_delivered/${key}_by`] = isReceived ? (currentAdminName || 'غير معروف') : null;
             updates[`${purePhone}/cert_delivered/${key}_at`] = isReceived ? getLocalDateTimeString() : null;
-            await database.ref('student_progress').update(updates);
+            await database.ref('new_system/student_progress').update(updates);
             await loadCertData();
             if (currentCertSubView === 'due') {
                 openCertSubView('due');
@@ -3435,8 +3384,8 @@
         if (!confirm('تأكيد إلغاء الموعد؟')) return;
         runWithOnlineConnection(async () => {
             const cancelUpdates = {};
-            cancelUpdates['students/' + id + '/canceled'] = true;
-            if (currentStudentPhone) cancelUpdates['student_appointments/' + currentStudentPhone + '/' + id + '/canceled'] = true;
+            cancelUpdates['new_system/students/' + id + '/canceled'] = true;
+            if (currentStudentPhone) cancelUpdates['new_system/student_appointments/' + currentStudentPhone + '/' + id + '/canceled'] = true;
             await database.ref().update(cancelUpdates);
             locallyAddedIds.delete(id);
             const idx = currentStudentRecords.findIndex(r => r.id === id);
@@ -3455,14 +3404,14 @@
         try {
             const configKey = makeCourseConfigKey(activeViewerDiplomaId, activeViewerCourseName);
             await runWithOnlineConnection(async () => {
-                await database.ref(`student_progress/${activeStudentManagePhone}/${configKey}/submissions/${activeViewerTaskKey}`).set({
+                await database.ref(`new_system/student_progress/${activeStudentManagePhone}/${configKey}/submissions/${activeViewerTaskKey}`).set({
                     link: linkVal, comment: null, timestamp: new Date().toLocaleString()
                 });
             });
             alert('تم إرسال رابط التسليم بنجاح!');
             closeStudentTaskViewer();
             if (currentStudentPhone && document.getElementById('student-dashboard').style.display !== 'none') {
-                const progSnap = await database.ref('student_progress/' + currentStudentPhone).get();
+                const progSnap = await database.ref('new_system/student_progress/' + currentStudentPhone).get();
                 currentStudentProgress = progSnap.exists() ? progSnap.val() : {};
                 currentStudentManageProgress = currentStudentProgress;
                 renderStudentDashboard();
@@ -3598,9 +3547,9 @@
         try {
             await runWithOnlineConnection(async () => {
                 const [snap, progSnap, diplomasSnap] = await Promise.all([
-                    database.ref('students').get(),
-                    database.ref('student_progress/' + mPhone).get(),
-                    database.ref('diplomas').get()
+                    database.ref('new_system/students').get(),
+                    database.ref('new_system/student_progress/' + mPhone).get(),
+                    database.ref('new_system/diplomas').get()
                 ]);
                 allDiplomas = diplomasSnap.exists() ? diplomasSnap.val() : {};
                 let studentProgressData = progSnap.exists() ? progSnap.val() : {};
@@ -3729,11 +3678,11 @@
             if (hasDuplicate) { showErrorModal(SYSTEM_MESSAGES.duplicate); resetBtn(); return; }
             try {
                 await runWithOnlineConnection(async () => {
-                    const freshBlockedSnap = await database.ref('blocked_phones').get();
+                    const freshBlockedSnap = await database.ref('new_system/blocked_phones').get();
                     let freshBlockedList = [];
                     if (freshBlockedSnap.exists()) freshBlockedSnap.forEach(c => freshBlockedList.push(extractPureNumber(c.val().phone || c.key)));
                     if (freshBlockedList.includes(phone)) { showErrorModal(SYSTEM_MESSAGES.blocked); resetBtn(); return; }
-                    const snapshot = await database.ref('students').get();
+                    const snapshot = await database.ref('new_system/students').get();
                     let dbData = [];
                     if (snapshot.exists()) snapshot.forEach(c => dbData.push({id: c.key, ...c.val()}));
                     let existingPhoneRecords = dbData.filter(d => extractPureNumber(d.phone) === phone && !d.canceled && isStrictlyNumber(d.group));
@@ -3746,7 +3695,7 @@
                         let cnt = dbData.filter(d => normalizeText(d.date) === normalizeText(app.date) && normalizeText(d.time) === normalizeText(app.time) && normalizeText(d.course) === normalizeText(course) && d.canceled !== true).length;
                         if (cnt >= maxLimit) { showErrorModal(`${SYSTEM_MESSAGES.full} (${app.date} - ${app.time})`); resetBtn(); return; }
                     }
-                    let promises = []; appointments.forEach(app => { const record = { name, phone, group: pureTargetGroup, course, date: app.date, time: app.time, attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString() }; promises.push(database.ref('students').push(record)); });
+                    let promises = []; appointments.forEach(app => { const record = { name, phone, group: pureTargetGroup, course, date: app.date, time: app.time, attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString() }; promises.push(database.ref('new_system/students').push(record)); });
                     await Promise.all(promises);
                     const list = document.getElementById('modal-appointments-list'); list.innerHTML = '';
                     appointments.forEach(app => list.innerHTML += `<li>تاريخ: <b>${app.date}</b> | <b>${app.time}</b></li>`);
@@ -3770,7 +3719,7 @@
         } else if (viewId === 'sysSettings') {
             populateLabTasksDiplomaSelect();
             renderSystemSettingsUI();
-            database.ref('lab_course_tasks').get().then(snap => {
+            database.ref('new_system/lab_course_tasks').get().then(snap => {
                 labCourseTasks = snap.exists() ? snap.val() : {};
                 renderSystemSettingsUI();
             }).catch(()=>{});
@@ -3785,23 +3734,23 @@
         if (adminListenersInitialized) return;
         adminListenersInitialized = true;
 
-        database.ref('settings/lab_phone').on('value', snap => {
+        database.ref('new_system/settings/lab_phone').on('value', snap => {
             globalLabPhone = snap.exists() ? snap.val() : "";
             renderSystemSettingsUI();
         });
-        database.ref('settings/messages').on('value', snap => {
+        database.ref('new_system/settings/messages').on('value', snap => {
             if(snap.exists()) Object.assign(SYSTEM_MESSAGES, snap.val());
             renderSystemSettingsUI();
         });
-        database.ref('settings/blockLateBooking').on('value', snap => {
+        database.ref('new_system/settings/blockLateBooking').on('value', snap => {
             if(snap.exists()) isLateBookingBlocked = snap.val();
             renderSystemSettingsUI();
         });
-        database.ref('settings/lateBookingOffset').on('value', snap => {
+        database.ref('new_system/settings/lateBookingOffset').on('value', snap => {
             if(snap.exists()) lateBookingOffsetHours = parseFloat(snap.val()) || 0;
             renderSystemSettingsUI();
         });
-        database.ref('settings/diploma_course_config').on('value', snap => {
+        database.ref('new_system/settings/diploma_course_config').on('value', snap => {
             diplomaCourseConfig = snap.exists() ? snap.val() : {};
             renderSystemSettingsUI();
             if (document.getElementById('view-groups').classList.contains('active')) {
@@ -3813,9 +3762,9 @@
                 renderDiplomaCoursesConfig();
             }
         });
-        database.ref('settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
-        database.ref('settings/schedule').on('value', snap => { if (snap.exists()) globalSchedule = snap.val(); else database.ref('settings/schedule').set(defaultSchedule); });
-        database.ref('settings/ban_rules').on('value', snap => {
+        database.ref('new_system/settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
+        database.ref('new_system/settings/schedule').on('value', snap => { if (snap.exists()) globalSchedule = snap.val(); else database.ref('new_system/settings/schedule').set(defaultSchedule); });
+        database.ref('new_system/settings/ban_rules').on('value', snap => {
             if(snap.exists()) {
                 let data = snap.val();
                 if(data.absence) Object.assign(banRules.absence, data.absence);
@@ -3825,7 +3774,7 @@
             if(document.getElementById('rule-abs-limit')) renderSystemSettingsUI();
         });
 
-        database.ref('lab_course_tasks').on('value', snap => {
+        database.ref('new_system/lab_course_tasks').on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
             if (document.getElementById('lab-tasks-diploma-select')) {
                 renderLabTasksCourseInputs();
@@ -3841,7 +3790,7 @@
             console.error('خطأ في قراءة lab_course_tasks (تأكد من Firebase Rules):', err);
         });
 
-        database.ref('diplomas').on('value', snap => {
+        database.ref('new_system/diplomas').on('value', snap => {
             const diplomas = snap.exists() ? snap.val() : {};
             allDiplomas = diplomas;
 
@@ -3854,7 +3803,7 @@
                     if (!dip.end_date_lab) updates.end_date_lab = calcEndDate(dip.start_date, 3);
                 }
                 if (Object.keys(updates).length > 0) {
-                    database.ref('diplomas/' + id).update(updates);
+                    database.ref('new_system/diplomas/' + id).update(updates);
                 }
             });
 
@@ -3866,7 +3815,7 @@
             populateLabTasksDiplomaSelect();
         });
 
-        database.ref('diploma_students').on('value', snap => {
+        database.ref('new_system/diploma_students').on('value', snap => {
             allDiplomaStudents = snap.exists() ? snap.val() : {};
             if (document.getElementById('view-groups').classList.contains('active')) {
                 if (currentLabDipId) renderLabDipCopyStudents();
@@ -3875,7 +3824,7 @@
             }
         });
 
-        database.ref('students').on('value', (snapshot) => {
+        database.ref('new_system/students').on('value', (snapshot) => {
             allStudents = [];
             if (snapshot.exists()) snapshot.forEach(child => { let val = child.val(); if(val) allStudents.push({ id: child.key, ...val }); });
             document.getElementById('records-counter').innerText = `إجمالي التسجيلات: ${allStudents.length}`;
@@ -3891,7 +3840,7 @@
             updateAdminSubmissionsBell();
         });
 
-        database.ref('student_progress').on('value', (snapshot) => {
+        database.ref('new_system/student_progress').on('value', (snapshot) => {
             allProgress = snapshot.exists() ? snapshot.val() : {};
             updateAdminSubmissionsBell();
             if (currentSelectedStudent) selectStudent(currentSelectedStudent);
@@ -3966,17 +3915,17 @@
         for (let i = 0; i < 4; i++) {
             newPeriods.push({ id: "p" + (i + 1), name: document.getElementById('edit-p-name-' + i).value, start: parseInt(document.getElementById('edit-p-start-' + i).value), end: parseInt(document.getElementById('edit-p-end-' + i).value) });
         }
-        database.ref('settings/periodsData').set(newPeriods).then(() => alert('تم.')).catch(e => alert(e.message));
+        database.ref('new_system/settings/periodsData').set(newPeriods).then(() => alert('تم.')).catch(e => alert(e.message));
     }
 
     function manualAddStudent() {
         let name = document.getElementById('manual-name').value; let phone = extractPureNumber(document.getElementById('manual-phone').value); let group = extractPureNumber(document.getElementById('manual-group').value);
         if(!name || phone.length !== 11 || !group) { alert("يرجى استكمال البيانات."); return; }
         const record = { name, phone, group, course: "غير محدد", date: "بدون موعد", time: "بدون موعد", attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString() };
-        database.ref('students').push(record).then(() => { alert('تم.'); document.getElementById('manual-name').value = ''; document.getElementById('manual-phone').value = ''; document.getElementById('manual-group').value = ''; }).catch(err => alert("خطأ: " + err.message));
+        database.ref('new_system/students').push(record).then(() => { alert('تم.'); document.getElementById('manual-name').value = ''; document.getElementById('manual-phone').value = ''; document.getElementById('manual-group').value = ''; }).catch(err => alert("خطأ: " + err.message));
     }
 
-    function deleteStudentFinal(id) { if (confirm('تأكيد الحذف النهائي؟')) database.ref('students/' + id).remove().catch(error => alert('خطأ: ' + error.message)); }
+    function deleteStudentFinal(id) { if (confirm('تأكيد الحذف النهائي؟')) database.ref('new_system/students/' + id).remove().catch(error => alert('خطأ: ' + error.message)); }
 
     window.deleteStudentCompletely = async function(phone) {
         if (confirm('تأكيد الحذف النهائي بجميع السجلات؟')) {
@@ -3985,8 +3934,8 @@
             let updates = {};
             targetRecords.forEach(r => updates[r.id] = null);
             try {
-                await database.ref('students').update(updates);
-                await database.ref('student_progress/' + pureP).remove();
+                await database.ref('new_system/students').update(updates);
+                await database.ref('new_system/student_progress/' + pureP).remove();
             } catch (error) { alert('خطأ: ' + error.message); }
         }
     };
@@ -4034,7 +3983,7 @@
         const desc = input.value.trim();
         if (!desc) return;
         try {
-            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks`).push({ desc, completed: false });
+            await database.ref(`new_system/student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks`).push({ desc, completed: false });
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -4043,7 +3992,7 @@
         const configKey = makeCourseConfigKey(diplomaId, courseName);
         const newState = !currentState;
         try {
-            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).set({ desc: currentDesc, completed: newState });
+            await database.ref(`new_system/student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).set({ desc: currentDesc, completed: newState });
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -4052,7 +4001,7 @@
         if (!confirm('حذف هذا التاسك؟')) return;
         const configKey = makeCourseConfigKey(diplomaId, courseName);
         try {
-            await database.ref(`student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).remove();
+            await database.ref(`new_system/student_progress/${extractPureNumber(phone)}/${configKey}/extra_tasks/${taskKey}`).remove();
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -4072,7 +4021,7 @@
             const updates = {};
             updates[taskKey] = newState;
             if (newState) updates[`submissions/${taskKey}`] = null;
-            await database.ref(`student_progress/${pureP}/${configKey}`).update(updates);
+            await database.ref(`new_system/student_progress/${pureP}/${configKey}`).update(updates);
             selectStudent(phone);
         } catch (err) { alert('خطأ: ' + err.message); }
     };
@@ -4095,7 +4044,7 @@
             });
         }
         try {
-            await database.ref(`student_progress/${pureP}/${configKey}`).update(updates);
+            await database.ref(`new_system/student_progress/${pureP}/${configKey}`).update(updates);
             selectStudent(phone);
         } catch(e) { alert('خطأ: ' + e.message); }
     };
@@ -4112,7 +4061,7 @@
         if (!inputEl) return;
         const text = inputEl.value.trim();
         try {
-            await database.ref(`student_progress/${pureP}/${configKey}/submissions/${taskKey}`).update({ comment: text || null });
+            await database.ref(`new_system/student_progress/${pureP}/${configKey}/submissions/${taskKey}`).update({ comment: text || null });
             alert('تم حفظ الملاحظة.');
             selectStudent(phone);
         } catch (e) { alert('خطأ: ' + e.message); }
@@ -4238,8 +4187,8 @@
     }
 
     window.toggleAttendanceOnly = function(id, status, checkboxElem) {
-        if (status) database.ref('students/' + id).update({ attended: true, attended_by: currentAdminName });
-        else database.ref('students/' + id).update({ attended: false, tasks: null, attended_by: null });
+        if (status) database.ref('new_system/students/' + id).update({ attended: true, attended_by: currentAdminName });
+        else database.ref('new_system/students/' + id).update({ attended: false, tasks: null, attended_by: null });
     };
 
     let pendingAttendanceId = null;
@@ -4312,7 +4261,7 @@
         const tasksStr = selectedTasks.join(' | ');
         const rec = allStudents.find(s => s.id === pendingAttendanceId);
 
-        await database.ref('students/' + pendingAttendanceId).update({
+        await database.ref('new_system/students/' + pendingAttendanceId).update({
             attended: true,
             tasks: tasksStr.length > 0 ? tasksStr : null,
             attended_by: currentAdminName
@@ -4328,7 +4277,7 @@
                     subDeletes[`task_${num}`] = null;
                 }
             });
-            if (Object.keys(subDeletes).length > 0) await database.ref(`student_progress/${pureP}/${configKey}/submissions`).update(subDeletes);
+            if (Object.keys(subDeletes).length > 0) await database.ref(`new_system/student_progress/${pureP}/${configKey}/submissions`).update(subDeletes);
         }
         document.getElementById('task-modal').style.display = 'none';
         pendingAttendanceId = null;
@@ -4370,7 +4319,7 @@
         document.getElementById('report-group').innerText = pureGroupNum;
         document.getElementById('report-total').innerText = validRecords.length;
         document.getElementById('report-absent').innerText = absent;
-        const progSnap = await database.ref('student_progress/' + extractPureNumber(studentPhone)).get();
+        const progSnap = await database.ref('new_system/student_progress/' + extractPureNumber(studentPhone)).get();
         const studentProgressData = progSnap.exists() ? progSnap.val() : {};
         let unblockDate = studentProgressData.unblock_date || null;
         let inactCheck = checkInactivity(allStudentRecords, unblockDate, studentProgressData.inactivity_reset_date, todayStr, banRules.inactivity.limit);
@@ -4455,7 +4404,7 @@
         });
     }
 
-    function toggleSchedulePeriod(day, period, newState) { if(confirm(`تعديل حالة الفترة؟`)) database.ref(`settings/schedule/${day}/${period}`).set(newState).then(() => { renderScheduleDay(day); }); }
+    function toggleSchedulePeriod(day, period, newState) { if(confirm(`تعديل حالة الفترة؟`)) database.ref(`new_system/settings/schedule/${day}/${period}`).set(newState).then(() => { renderScheduleDay(day); }); }
 
     function renderPeriodsList(date) {
         currentSelectedDate = date;
@@ -4518,11 +4467,11 @@
         });
     }
 
-    function restoreStudent(id) { if(confirm('تأكيد الاسترجاع؟')) database.ref('students/' + id).update({ canceled: null }); }
+    function restoreStudent(id) { if(confirm('تأكيد الاسترجاع؟')) database.ref('new_system/students/' + id).update({ canceled: null }); }
     function backToDates() { currentSelectedDate = null; currentSelectedPeriod = null; renderDatesList(); }
     function backToPeriods() { currentSelectedPeriod = null; renderPeriodsList(currentSelectedDate); }
-    function deleteAllInPeriod() { if (confirm(`حذف؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate && s.time === currentSelectedPeriod).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToPeriods); } }
-    function deleteAllInDay() { if (confirm(`حذف اليوم بالكامل؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate).forEach(student => updates[student.id] = null); database.ref('students').update(updates).then(backToDates); } }
+    function deleteAllInPeriod() { if (confirm(`حذف؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate && s.time === currentSelectedPeriod).forEach(student => updates[student.id] = null); database.ref('new_system/students').update(updates).then(backToPeriods); } }
+    function deleteAllInDay() { if (confirm(`حذف اليوم بالكامل؟`)) { let updates = {}; allStudents.filter(s => s.date === currentSelectedDate).forEach(student => updates[student.id] = null); database.ref('new_system/students').update(updates).then(backToDates); } }
 
     /* ============ إعدادات النظام - إدارة تاسكات المعمل ============ */
 
@@ -4530,7 +4479,7 @@
         const select = document.getElementById('lab-tasks-diploma-select');
         if (!select) return;
         try {
-            const snap = await database.ref('diplomas').get();
+            const snap = await database.ref('new_system/diplomas').get();
             const diplomas = snap.exists() ? snap.val() : {};
             const namesSet = new Set();
             Object.values(diplomas).forEach(d => {
@@ -4608,11 +4557,11 @@
             updates[cName] = { tasks: val };
         });
         try {
-            await database.ref('lab_course_tasks/' + diplomaName).update(updates);
+            await database.ref('new_system/lab_course_tasks/' + diplomaName).update(updates);
             alert('تم حفظ تاسكات الدورة ✅\n\nملاحظة: مودال "Tasks PDF" هياخد العدد الجديد تلقائيًا.');
         } catch(e) {
             console.error('خطأ في الحفظ:', e);
-            alert('خطأ: ' + e.message + '\n\nتأكد من إضافة "lab_course_tasks" في Firebase Rules:\n"lab_course_tasks": {\n  ".read": true,\n  ".write": "auth != null"\n}');
+            alert('خطأ: ' + e.message + '\n\nتأكد من إضافة "new_system/lab_course_tasks" في Firebase Rules:\n"new_system/lab_course_tasks": {\n  ".read": true,\n  ".write": "auth != null"\n}');
         }
     };
 
@@ -4665,7 +4614,7 @@
         const exam = document.getElementById('course-config-exam').checked;
         const configKey = makeCourseConfigKey(editingConfigDiplomaId, editingConfigCourseName);
         try {
-            await database.ref('settings/diploma_course_config/' + configKey).update({
+            await database.ref('new_system/settings/diploma_course_config/' + configKey).update({
                 limit, upcomingLimit: upcoming, exam
             });
             alert('تم حفظ إعدادات الكورس ✅');
@@ -4702,7 +4651,7 @@
         currentEditingPdfCourseName = courseName;
 
         try {
-            const snap = await database.ref('lab_course_tasks').get();
+            const snap = await database.ref('new_system/lab_course_tasks').get();
             labCourseTasks = snap.exists() ? snap.val() : {};
         } catch(e) {
             console.warn('تعذّر تحديث lab_course_tasks:', e);
@@ -4805,7 +4754,7 @@
         const courseName = currentEditingPdfCourseName;
 
         try {
-            const snap = await database.ref('lab_course_tasks').get();
+            const snap = await database.ref('new_system/lab_course_tasks').get();
             labCourseTasks = snap.exists() ? snap.val() : {};
         } catch(e) {
             console.warn('تعذّر تحديث lab_course_tasks:', e);
@@ -4888,7 +4837,7 @@
                 }
             }
 
-            const pdfTasksRef = database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`);
+            const pdfTasksRef = database.ref(`new_system/settings/diploma_course_config/${configKey}/pdfTasks`);
             const saveOps = [];
             for (let i = 1; i <= dynamicTaskCount; i++) {
                 const tKey = `task_${i}`;
@@ -4963,10 +4912,10 @@
     window.saveSystemSettings = async function() {
         try {
             const lateOffsetVal = parseFloat(document.getElementById('late-booking-offset').value) || 0;
-            await database.ref('settings/lateBookingOffset').set(lateOffsetVal);
+            await database.ref('new_system/settings/lateBookingOffset').set(lateOffsetVal);
 
             const labPhoneEl = document.getElementById('setting-lab-phone');
-            if (labPhoneEl) await database.ref('settings/lab_phone').set(labPhoneEl.value.trim());
+            if (labPhoneEl) await database.ref('new_system/settings/lab_phone').set(labPhoneEl.value.trim());
 
             const msgFields = ['wa_template', 'success', 'full', 'closed_day', 'late_block', 'blocked', 'duplicate', 'not_found', 'phone_err', 'group_mismatch'];
             const msgIds = ['msg-wa-template', 'msg-success', 'msg-full', 'msg-closed-day', 'msg-late', 'msg-blocked', 'msg-duplicate', 'msg-not-found', 'msg-phone-err', 'msg-group-mismatch'];
@@ -4976,7 +4925,7 @@
                 if (el) msgsUpdate[msgFields[idx]] = el.value;
             });
             if (Object.keys(msgsUpdate).length > 0) {
-                await database.ref('settings/messages').update(msgsUpdate);
+                await database.ref('new_system/settings/messages').update(msgsUpdate);
             }
 
             alert('تم حفظ كافة إعدادات النظام بنجاح ✅');
@@ -4984,7 +4933,7 @@
     };
 
     window.toggleBlockLateBooking = function() {
-        database.ref('settings/blockLateBooking').set(!isLateBookingBlocked).catch(e => alert(e.message));
+        database.ref('new_system/settings/blockLateBooking').set(!isLateBookingBlocked).catch(e => alert(e.message));
     };
 </script>
 </body>
