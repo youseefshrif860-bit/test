@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=23') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=23');
+        if (window.location.href.indexOf('?v=24') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=24');
         }
     </script>
     <title>test</title>
@@ -1610,7 +1610,6 @@
         }
     };
 
-    // ✅ v=23: تحميل lab_course_tasks للطلاب (كان بيتم تحميلها للأدمن فقط)
     async function initPublicSettingsOnce() {
         await runWithOnlineConnection(async () => {
             try {
@@ -1634,12 +1633,11 @@
                 console.warn('Could not load settings:', e.message);
             }
 
-            // ✅ تحميل عدد التاسكات لكل كورس (ضروري لعرض التاسكات للطلاب)
             try {
                 const labTasksSnap = await database.ref('new_system/lab_course_tasks').get();
                 if (labTasksSnap.exists()) {
                     labCourseTasks = labTasksSnap.val();
-                    console.log('✅ v23 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
+                    console.log('✅ v24 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
                 }
             } catch(e) {
                 console.warn('⚠️ Could not load lab_course_tasks:', e.message);
@@ -1784,7 +1782,6 @@
         clearTimeout(idleConnectionTimer);
         database.goOnline();
 
-        // ✅ v=23: listener لـ lab_course_tasks (لتحديث التاسكات لو الإدارة غيرتها)
         const labTasksRef = database.ref('new_system/lab_course_tasks');
         const labTasksCallback = labTasksRef.on('value', snap => {
             labCourseTasks = snap.exists() ? snap.val() : {};
@@ -1915,7 +1912,6 @@
         studentRealtimeRefs.push({ off: () => dipStudentsRef.off('value', dipStudentsCallback) });
     }
 
-    // ✅ v=23: studentLogin بيحمّل lab_course_tasks قبل أي حاجة
     window.studentLogin = async function() {
         const phoneRaw = document.getElementById('student-login-phone').value;
         const groupRaw = document.getElementById('student-login-group').value;
@@ -1929,14 +1925,13 @@
 
         try {
             await runWithOnlineConnection(async () => {
-                // ✅ v=23: تحميل lab_course_tasks أول حاجة (مهم للطلاب)
                 const [settingsSnap, labTasksSnap] = await Promise.all([
                     database.ref('new_system/settings').get(),
                     database.ref('new_system/lab_course_tasks').get()
                 ]);
 
                 labCourseTasks = labTasksSnap.exists() ? labTasksSnap.val() : {};
-                console.log('🔍 v23 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
+                console.log('🔍 v24 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
 
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
@@ -2178,7 +2173,6 @@
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
-        // فلتر: بس الكورسات اللي عندها مواعيد قادمة
         const upcomingCourseKeys = new Set();
         upcomingRecs.forEach(r => {
             upcomingCourseKeys.add(courseNameToKey(r.course));
@@ -5290,15 +5284,21 @@
         return [...new Set(pages)];
     }
 
+    // ✅ v24: جودة أعلى للصور مع حجم معقول
     async function renderPdfPageToBase64(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 0.75 });
+        // الدقة: 1.5 (بدل 0.75) = 2× بكسلات، وضوح أعلى بكتير
+        const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.height = viewport.height;
         canvas.width = viewport.width;
+        // تحسين anti-aliasing للنصوص
+        ctx.imageSmoothingEnabled = true;
+        ctx.imageSmoothingQuality = 'high';
         await page.render({ canvasContext: ctx, viewport }).promise;
-        return canvas.toDataURL('image/jpeg', 0.5);
+        // جودة JPEG: 0.78 (بدل 0.5) = وضوح أعلى بدون زيادة كبيرة في الحجم
+        return canvas.toDataURL('image/jpeg', 0.78);
     }
 
     window.savePdfConfigData = async function() {
