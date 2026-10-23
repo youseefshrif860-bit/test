@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=15') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=15');
+        if (window.location.href.indexOf('?v=16') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=16');
         }
     </script>
     <title>test</title>
@@ -1674,6 +1674,64 @@
     let studentRealtimeRefs = [];
     let locallyAddedIds = new Set();
 
+    // ID ثابت لكل محاولة حجز داخل نافذة الحجز؛ إعادة استدعاء الدالة لن تنشئ صفاً جديداً.
+    window.currentBookingRequestId = null;
+    window.isBookingAppointment = false;
+
+    // منع عرض نفس الحجز أكثر من مرة حتى لو كانت هناك سجلات قديمة بمعرّفات مختلفة.
+    // المواعيد الملغاة لا تُدمج مع موعد نشط جديد لنفس اليوم والوقت.
+    function dedupeAppointmentRecords(records) {
+        const byId = new Map();
+        let noIdCounter = 0;
+
+        (records || []).forEach(record => {
+            if (!record) return;
+            const mapKey = record.id ? String(record.id) : `__no_id_${noIdCounter++}`;
+            const old = byId.get(mapKey);
+            if (old) {
+                const duplicateIds = new Set([...(old._duplicateIds || []), ...(record._duplicateIds || [])]);
+                byId.set(mapKey, { ...old, ...record, _duplicateIds: Array.from(duplicateIds) });
+            } else {
+                byId.set(mapKey, { ...record, _duplicateIds: [...(record._duplicateIds || [])] });
+            }
+        });
+
+        const result = [];
+        const activeBySignature = new Map();
+        byId.forEach(record => {
+            if (!record.date || record.date === 'بدون موعد' || record.canceled === true) {
+                result.push(record);
+                return;
+            }
+
+            const phone = extractPureNumber(record.phone || '');
+            if (!phone || !record.time) {
+                result.push(record);
+                return;
+            }
+
+            // حسب منطق الحجز في النظام، الطالب لا يستطيع حجز موعدين في نفس التاريخ والوقت.
+            const signature = `${phone}|${record.date}|${record.time}`;
+            const existing = activeBySignature.get(signature);
+            if (!existing) {
+                activeBySignature.set(signature, record);
+                result.push(record);
+                return;
+            }
+
+            const ids = new Set([...(existing._duplicateIds || []), record.id, ...(record._duplicateIds || [])]);
+            ids.delete(undefined);
+            ids.delete(null);
+            ids.delete(existing.id);
+            existing._duplicateIds = Array.from(ids);
+            // احتفظ بمعلومة الحضور/التاسكات لو كانت موجودة في أحد السجلين.
+            if (record.attended === true) existing.attended = true;
+            if (!existing.tasks && record.tasks) existing.tasks = record.tasks;
+        });
+
+        return result;
+    }
+
     function detachStudentRealtimeListeners() {
         studentRealtimeRefs.forEach(ref => { try { ref.off(); } catch(e){} });
         studentRealtimeRefs = [];
@@ -1729,7 +1787,7 @@
                 const old = mergedRecords.get(r.id);
                 mergedRecords.set(r.id, old ? { ...old, ...r } : r);
             });
-            currentStudentRecords = Array.from(mergedRecords.values());
+            currentStudentRecords = dedupeAppointmentRecords(Array.from(mergedRecords.values()));
             currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
 
             if (document.getElementById('student-dashboard').style.display !== 'none') {
@@ -1754,6 +1812,7 @@
                 if (idx === -1) currentStudentRecords.push(a);
                 else currentStudentRecords[idx] = { ...currentStudentRecords[idx], ...a };
             });
+            currentStudentRecords = dedupeAppointmentRecords(currentStudentRecords);
             currentStudentRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
             if (document.getElementById('student-dashboard').style.display !== 'none') renderStudentDashboard();
         });
@@ -1969,7 +2028,7 @@
                 });
 
                 matchingRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
-                currentStudentRecords = matchingRecords;
+                currentStudentRecords = dedupeAppointmentRecords(matchingRecords);
                 currentStudentName = (validDiplomaMatches.length > 0 ? validDiplomaMatches[0].name : null)
                     || (matchingRecords.length > 0 ? matchingRecords[matchingRecords.length - 1].name : 'طالب');
 
@@ -2003,6 +2062,7 @@
     };
 
     function renderStudentDashboard() {
+        currentStudentRecords = dedupeAppointmentRecords(currentStudentRecords);
         document.getElementById('student-view').style.display = 'none';
         document.getElementById('student-dashboard').style.display = 'block';
 
@@ -2119,6 +2179,7 @@
     }
 
     window.openBookAppointmentModal = function() {
+        window.currentBookingRequestId = database.ref('new_system/students').push().key;
         document.getElementById('book-date').min = today;
         document.getElementById('book-date').value = '';
         document.getElementById('book-time').innerHTML = '<option value="">اختر التاريخ أولاً</option>';
@@ -2200,70 +2261,120 @@
     };
 
     window.submitBookAppointment = async function() {
-        // منع الضغط المزدوج على زر الحجز قبل انتهاء عملية Firebase
+        // يمنع النقر المزدوج، كما أن request ID الثابت يمنع إنشاء سجل ثانٍ لنفس المحاولة.
         if (window.isBookingAppointment) return;
         window.isBookingAppointment = true;
+
         const submitBtn = document.querySelector('#book-appointment-modal .submit-btn');
+        const cancelBtn = document.querySelector('#book-appointment-modal .back-btn');
         if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; }
-
-        const course = document.getElementById('book-course').value;
-        const date = document.getElementById('book-date').value;
-        const time = document.getElementById('book-time').value;
-        if (!date || !time || !course) {
-            showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.');
-            window.isBookingAppointment = false;
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
-            return;
-        }
-
-        let diplomaId = null;
-        (currentStudentDiplomaData || []).forEach(dipData => {
-            if (!diplomaId && (dipData.courses || []).some(c => c.name === course)) {
-                diplomaId = dipData.diplomaId;
-            }
-        });
-
-        if (!diplomaId) {
-            showErrorModal('لم يتم العثور على الدورة المطابقة.');
-            window.isBookingAppointment = false;
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
-            return;
-        }
-
-        const cfg = getCourseConfig(diplomaId, course);
-        const maxLimit = cfg.limit || 8;
+        if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.style.opacity = '0.6'; }
 
         try {
+            const course = document.getElementById('book-course').value;
+            const date = document.getElementById('book-date').value;
+            const time = document.getElementById('book-time').value;
+
+            if (!currentStudentPhone || !date || !time || !course) {
+                showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.');
+                return;
+            }
+
+            let diplomaId = null;
+            (currentStudentDiplomaData || []).forEach(dipData => {
+                if (!diplomaId && (dipData.courses || []).some(c => c.name === course)) {
+                    diplomaId = dipData.diplomaId;
+                }
+            });
+
+            if (!diplomaId) {
+                showErrorModal('لم يتم العثور على الدورة المطابقة.');
+                return;
+            }
+
+            const cfg = getCourseConfig(diplomaId, course);
+            const maxLimit = cfg.limit || 8;
+            const bookingId = window.currentBookingRequestId || database.ref('new_system/students').push().key;
+            // تأكد من ثبات المعرّف حتى إغلاق/فتح نافذة حجز جديدة.
+            window.currentBookingRequestId = bookingId;
+
             await runWithOnlineConnection(async () => {
-                const snap = await database.ref('new_system/students').get();
-                let countInSlot = 0;
-                if (snap.exists()) snap.forEach(c => {
-                    let d = c.val();
-                    if (d.date === date && d.time === time && d.course === course && d.canceled !== true) countInSlot++;
-                });
-                if (countInSlot >= maxLimit) { showErrorModal(SYSTEM_MESSAGES.full); return; }
+                const [studentsSnap, appointmentsSnap, blockSnap] = await Promise.all([
+                    database.ref('new_system/students').get(),
+                    database.ref('new_system/student_appointments/' + currentStudentPhone).get(),
+                    database.ref('new_system/blocked_phones/' + currentStudentPhone).get()
+                ]);
 
-                let dup = currentStudentRecords.some(r => r.date === date && r.time === time && !r.canceled);
-                if (dup) { showErrorModal(SYSTEM_MESSAGES.duplicate); return; }
+                const allServerRecords = new Map();
+                if (studentsSnap.exists()) {
+                    studentsSnap.forEach(child => {
+                        const value = child.val();
+                        if (value) allServerRecords.set(child.key, { id: child.key, ...value });
+                    });
+                }
+                // المسار الشخصي نسخة مساعدة؛ لا نضيف سجلاً مكررًا إذا كان موجودًا بالمعرّف نفسه.
+                if (appointmentsSnap.exists()) {
+                    appointmentsSnap.forEach(child => {
+                        const value = child.val();
+                        if (value && !allServerRecords.has(child.key)) {
+                            allServerRecords.set(child.key, { id: child.key, ...value });
+                        }
+                    });
+                }
 
-                const blockSnap = await database.ref('new_system/blocked_phones/' + currentStudentPhone).get();
-                if (blockSnap.exists()) { showErrorModal(SYSTEM_MESSAGES.blocked); return; }
+                const uniqueServerRecords = dedupeAppointmentRecords(Array.from(allServerRecords.values()));
+                const countInSlot = uniqueServerRecords.filter(record =>
+                    record.date === date && record.time === time && record.course === course && record.canceled !== true
+                ).length;
+                if (countInSlot >= maxLimit) {
+                    showErrorModal(SYSTEM_MESSAGES.full);
+                    return;
+                }
+
+                // الفحص من Firebase نفسه، وليس من القائمة المحلية فقط.
+                // أي حجز نشط لنفس الطالب في التاريخ والوقت يمنع إنشاء حجز جديد.
+                const duplicateOnServer = Array.from(allServerRecords.values()).some(record =>
+                    record.id !== bookingId &&
+                    extractPureNumber(record.phone || '') === currentStudentPhone &&
+                    record.date === date && record.time === time &&
+                    record.canceled !== true
+                );
+                const duplicateLocally = currentStudentRecords.some(record =>
+                    record.id !== bookingId && record.date === date && record.time === time && record.canceled !== true
+                );
+
+                if (duplicateOnServer || duplicateLocally) {
+                    showErrorModal(SYSTEM_MESSAGES.duplicate);
+                    return;
+                }
+
+                if (blockSnap.exists()) {
+                    showErrorModal(SYSTEM_MESSAGES.blocked);
+                    return;
+                }
 
                 const record = {
-                    name: currentStudentName, phone: currentStudentPhone, group: currentStudentGroup,
-                    course: course, date: date, time: time,
-                    attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString()
+                    name: currentStudentName,
+                    phone: currentStudentPhone,
+                    group: currentStudentGroup,
+                    course: course,
+                    date: date,
+                    time: time,
+                    attended: false,
+                    tasks: null,
+                    canceled: false,
+                    timestamp: new Date().toLocaleString()
                 };
-                const pushRef = database.ref('new_system/students').push();
-                const newId = pushRef.key;
-                const updates = {};
-                updates['new_system/students/' + newId] = record;
-                updates['new_system/student_appointments/' + currentStudentPhone + '/' + newId] = record;
-                await database.ref().update(updates);
-                const newRecord = { id: newId, ...record };
 
+                // استخدام نفس المعرّف في المسارين يجعل إعادة تنفيذ نفس الطلب idempotent.
+                const updates = {};
+                updates['new_system/students/' + bookingId] = record;
+                updates['new_system/student_appointments/' + currentStudentPhone + '/' + bookingId] = record;
+                await database.ref().update(updates);
+
+                const newRecord = { id: bookingId, ...record };
                 locallyAddedIds.add(newRecord.id);
-                currentStudentRecords.push(newRecord);
+                currentStudentRecords = dedupeAppointmentRecords([...currentStudentRecords, newRecord]);
                 currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                 closeBookAppointmentModal();
@@ -2271,15 +2382,17 @@
                 alert('تم حجز الموعد بنجاح! ✅');
 
                 setTimeout(() => {
-                    const exists = currentStudentRecords.some(r => r.id === newRecord.id);
-                    if (exists) locallyAddedIds.delete(newRecord.id);
+                    if (currentStudentRecords.some(r => r.id === newRecord.id)) {
+                        locallyAddedIds.delete(newRecord.id);
+                    }
                 }, 5000);
             });
-        } catch(e) {
+        } catch (e) {
             showErrorModal('خطأ: ' + e.message);
         } finally {
             window.isBookingAppointment = false;
             if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
+            if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.style.opacity = ''; }
         }
     };
 
@@ -3420,15 +3533,22 @@
     window.cancelMyApp = function(id) {
         if (!confirm('تأكيد إلغاء الموعد؟')) return;
         runWithOnlineConnection(async () => {
+            const target = currentStudentRecords.find(r => r.id === id);
+            const idsToCancel = new Set([id, ...((target && target._duplicateIds) || [])]);
             const cancelUpdates = {};
-            cancelUpdates['new_system/students/' + id + '/canceled'] = true;
-            if (currentStudentPhone) cancelUpdates['new_system/student_appointments/' + currentStudentPhone + '/' + id + '/canceled'] = true;
+            idsToCancel.forEach(appointmentId => {
+                cancelUpdates['new_system/students/' + appointmentId + '/canceled'] = true;
+                if (currentStudentPhone) {
+                    cancelUpdates['new_system/student_appointments/' + currentStudentPhone + '/' + appointmentId + '/canceled'] = true;
+                }
+            });
             await database.ref().update(cancelUpdates);
-            locallyAddedIds.delete(id);
-            const idx = currentStudentRecords.findIndex(r => r.id === id);
-            if (idx !== -1) {
-                currentStudentRecords[idx].canceled = true;
-            }
+            idsToCancel.forEach(appointmentId => {
+                locallyAddedIds.delete(appointmentId);
+                const idx = currentStudentRecords.findIndex(r => r.id === appointmentId);
+                if (idx !== -1) currentStudentRecords[idx].canceled = true;
+            });
+            currentStudentRecords = dedupeAppointmentRecords(currentStudentRecords);
             renderStudentDashboard();
             alert('تم الإلغاء.');
         }).catch(e => alert(e.message));
