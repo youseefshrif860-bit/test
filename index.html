@@ -1705,7 +1705,7 @@
 
             let serverRecords = allSt.filter(s => {
                 if (extractPureNumber(s.phone) !== currentStudentPhone) return false;
-                if (s.canceled || !s.date || s.date === "بدون موعد") return false;
+                if (!s.date || s.date === "بدون موعد") return false;
                 const sameGroup = extractPureNumber(s.group) === currentStudentGroup;
                 const legacySameCourse = selectedCourseKeys.has(courseNameToKey(s.course || ''));
                 return sameGroup || legacySameCourse;
@@ -1736,7 +1736,7 @@
             const indexed = [];
             snap.forEach(c => {
                 const a = { id: c.key, ...c.val() };
-                if (a.canceled || !a.date || a.date === "بدون موعد") return;
+                if (!a.date || a.date === "بدون موعد") return;
                 const sameGroup = extractPureNumber(a.group) === currentStudentGroup;
                 if (sameGroup) indexed.push(a);
             });
@@ -1895,7 +1895,7 @@
 
                 let matchingRecords = allSt.filter(s => {
                     if (extractPureNumber(s.phone) !== phone) return false;
-                    if (s.canceled || !s.date || s.date === "بدون موعد") return false;
+                    if (!s.date || s.date === "بدون موعد") return false;
                     const sameGroup = extractPureNumber(s.group) === group;
                     const legacySameCourse = validCourseKeys.has(courseNameToKey(s.course || ''));
                     return sameGroup || legacySameCourse;
@@ -1906,7 +1906,7 @@
                 if (appointmentIndexSnap.exists()) {
                     appointmentIndexSnap.forEach(c => {
                         const a = { id: c.key, ...c.val() };
-                        if (a.canceled || !a.date || a.date === "بدون موعد") return;
+                        if (!a.date || a.date === "بدون موعد") return;
                         const sameGroup = extractPureNumber(a.group) === group;
                         const sameCourse = validCourseKeys.has(courseNameToKey(a.course || ''));
                         if (!sameGroup && !sameCourse) return;
