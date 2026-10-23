@@ -1720,7 +1720,16 @@
 
             locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
 
-            currentStudentRecords = serverRecords;
+            // لا نسمح للـ realtime listener بمسح أي سجل موجود محلياً.
+            // خصوصاً السجل الذي تم إلغاؤه: يختفي من المواعيد القادمة فقط،
+            // لكنه يظل جزءاً من سجل الطالب حتى لا تتغير الإحصائيات.
+            const mergedRecords = new Map();
+            currentStudentRecords.forEach(r => mergedRecords.set(r.id, r));
+            serverRecords.forEach(r => {
+                const old = mergedRecords.get(r.id);
+                mergedRecords.set(r.id, old ? { ...old, ...r } : r);
+            });
+            currentStudentRecords = Array.from(mergedRecords.values());
             currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
 
             if (document.getElementById('student-dashboard').style.display !== 'none') {
@@ -1997,8 +2006,10 @@
         document.getElementById('student-view').style.display = 'none';
         document.getElementById('student-dashboard').style.display = 'block';
 
-        let attendedCount = currentStudentRecords.filter(r => r.attended).length;
-        let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time)).length;
+        // الإحصائيات التاريخية لا تتأثر بإلغاء موعد مستقبلي.
+        // canceled يؤثر فقط على المواعيد القادمة المعروضة للطالب.
+        let attendedCount = currentStudentRecords.filter(r => r.attended === true).length;
+        let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time) && !r.canceled).length;
         let upcomingRecs = currentStudentRecords.filter(r => !r.canceled && !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
@@ -3071,7 +3082,7 @@
     function isStudentEligibleForDiplomaCert(dipId, dip, studentProgressData, allStudentRecords, studentPhone) {
         if (!dip.courses || dip.courses.length === 0) return false;
         const cTasks = {};
-        allStudentRecords.filter(s => extractPureNumber(s.phone) === studentPhone && !s.canceled && s.attended && s.tasks).forEach(r => {
+        allStudentRecords.filter(s => extractPureNumber(s.phone) === studentPhone && s.attended && s.tasks).forEach(r => {
             const courseName = r.course;
             const courseKey = courseNameToKey(courseName);
             const configKey = `${dipId}_${courseKey}`;
@@ -3449,7 +3460,7 @@
         if (enrolledCourses.length === 0) return false;
 
         const cTasks = {};
-        recordsArr.filter(s => extractPureNumber(s.phone) === purePhoneParam && !s.canceled && s.attended && s.tasks).forEach(r => {
+        recordsArr.filter(s => extractPureNumber(s.phone) === purePhoneParam && s.attended && s.tasks).forEach(r => {
             const courseKey = courseNameToKey(r.course);
             Object.keys(allDiplomas).forEach(dipId => {
                 const dip = allDiplomas[dipId];
