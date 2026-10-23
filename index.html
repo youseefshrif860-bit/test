@@ -1007,9 +1007,6 @@
         return dip.end_date || null;
     }
 
-    // Use the same active-period rule shown in Lab group management:
-    // a group remains active until its lab end date. A missing end date
-    // does not block an existing enrollment.
     function isLabDiplomaActive(dip, dateString = getLocalDateString()) {
         if (!dip) return false;
         const endDate = getEndDateLab(dip);
@@ -1141,7 +1138,7 @@
     let isLateBookingBlocked = false;
     let lateBookingOffsetHours = 0;
 
-    let diplomaCourseConfig = {}; // { [diplomaId_courseKey]: { limit, exam, upcomingLimit, pdfTasks } }
+    let diplomaCourseConfig = {};
 
     function makeCourseConfigKey(diplomaId, courseName) {
         return `${diplomaId}_${courseNameToKey(courseName)}`;
@@ -1679,12 +1676,9 @@
     let studentRealtimeRefs = [];
     let locallyAddedIds = new Set();
 
-    // ID ثابت لكل محاولة حجز داخل نافذة الحجز؛ إعادة استدعاء الدالة لن تنشئ صفاً جديداً.
     window.currentBookingRequestId = null;
     window.isBookingAppointment = false;
 
-    // منع عرض نفس الحجز أكثر من مرة حتى لو كانت هناك سجلات قديمة بمعرّفات مختلفة.
-    // المواعيد الملغاة لا تُدمج مع موعد نشط جديد لنفس اليوم والوقت.
     function dedupeAppointmentRecords(records) {
         const byId = new Map();
         let noIdCounter = 0;
@@ -1715,7 +1709,6 @@
                 return;
             }
 
-            // حسب منطق الحجز في النظام، الطالب لا يستطيع حجز موعدين في نفس التاريخ والوقت.
             const signature = `${phone}|${record.date}|${record.time}`;
             const existing = activeBySignature.get(signature);
             if (!existing) {
@@ -1729,7 +1722,6 @@
             ids.delete(null);
             ids.delete(existing.id);
             existing._duplicateIds = Array.from(ids);
-            // احتفظ بمعلومة الحضور/التاسكات لو كانت موجودة في أحد السجلين.
             if (record.attended === true) existing.attended = true;
             if (!existing.tasks && record.tasks) existing.tasks = record.tasks;
         });
@@ -1755,9 +1747,6 @@
             let allSt = [];
             if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
 
-            // تحميل مواعيد الطالب من Firebase بعد كل دخول.
-            // نعتمد على الهاتف + رقم الدورة، ومع السجلات القديمة التي لا تحتوي
-            // على group صحيح نتحقق من أن الكورس تابع للدورة الحالية.
             const selectedDiplomas = (currentStudentDiplomaData || []).filter(d =>
                 extractPureNumber(d.dipNumber) === currentStudentGroup
             );
@@ -1783,9 +1772,6 @@
 
             locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
 
-            // لا نسمح للـ realtime listener بمسح أي سجل موجود محلياً.
-            // خصوصاً السجل الذي تم إلغاؤه: يختفي من المواعيد القادمة فقط،
-            // لكنه يظل جزءاً من سجل الطالب حتى لا تتغير الإحصائيات.
             const mergedRecords = new Map();
             currentStudentRecords.forEach(r => mergedRecords.set(r.id, r));
             serverRecords.forEach(r => {
@@ -1801,7 +1787,6 @@
         });
         studentRealtimeRefs.push({ off: () => studentsRef.off('value', studentsCallback) });
 
-        // Listener مخصص لمواعيد الطالب حتى تظل ظاهرة بعد الخروج والدخول.
         const appointmentRef = database.ref('new_system/student_appointments/' + currentStudentPhone);
         const appointmentCallback = appointmentRef.on('value', snap => {
             if (!currentStudentPhone || !snap.exists()) return;
@@ -1924,7 +1909,6 @@
                     });
                 });
 
-                // فلترة الدورات الشغالة حالياً فقط
                 const todayStr = getLocalDateString();
                 let activeDiplomaMatches = diplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
@@ -1948,9 +1932,6 @@
 
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
-                // استرجاع المواعيد المحفوظة عند تسجيل الدخول من جديد.
-                // بعض المواعيد القديمة قد يكون حقل group فيها مفقود/مختلف،
-                // لذلك نسمح بها فقط إذا كان الكورس نفسه تابعاً للدورة الصحيحة.
                 const validCourseKeys = new Set();
                 validDiplomaMatches.forEach(m => {
                     const dip = diplomasData[m.diplomaId];
@@ -1967,8 +1948,6 @@
                     return sameGroup || legacySameCourse;
                 });
 
-                // نسخة مستقلة لمواعيد كل طالب. هذا يمنع اختفاء المواعيد بعد Logout/Login
-                // حتى لو حدث تأخير في قراءة قائمة students العامة.
                 if (appointmentIndexSnap.exists()) {
                     appointmentIndexSnap.forEach(c => {
                         const a = { id: c.key, ...c.val() };
@@ -1980,8 +1959,6 @@
                     });
                 }
 
-                // ترحيل المواعيد القديمة تلقائياً إلى المسار الجديد مرة واحدة.
-                // لا ننتظر العملية حتى لا نعطل دخول الطالب.
                 const appointmentIndexUpdates = {};
                 matchingRecords.forEach(r => {
                     if (r.id) appointmentIndexUpdates[r.id] = {
@@ -2064,8 +2041,6 @@
         document.getElementById('student-view').style.display = 'none';
         document.getElementById('student-dashboard').style.display = 'block';
 
-        // الإحصائيات التاريخية لا تتأثر بإلغاء موعد مستقبلي.
-        // canceled يؤثر فقط على المواعيد القادمة المعروضة للطالب.
         let attendedCount = currentStudentRecords.filter(r => r.attended === true).length;
         let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time) && !r.canceled).length;
         let canceledCount = currentStudentRecords.filter(r => r.canceled === true).length;
@@ -2176,7 +2151,6 @@
         document.getElementById('student-dashboard-content').innerHTML = html;
     }
 
-    // قائمة الكورسات المتاحة للحجز، وتستخدمها كل صفوف المواعيد في النافذة.
     window.availableBookingCourses = [];
     window.bookingRowCounter = 0;
 
@@ -2427,7 +2401,6 @@
                     return;
                 }
 
-                // نراجع كل موعد قبل الحفظ؛ لن يُحفظ أي جزء من الطلب لو كان أحد المواعيد غير صالح.
                 for (const selection of selections) {
                     const existingSameRequest = allServerRecords.get(selection.bookingId);
                     const alreadySaved = existingSameRequest &&
@@ -2804,7 +2777,6 @@
         });
     };
 
-    // حذف بيانات الطالب/المجموعة المرتبطة بالدبلومة، مع الحفاظ على تسجيلات الطالب في مجموعات أخرى.
     async function removeDiplomaRelatedData(diplomaId, options = {}) {
         const wholeGroup = options.wholeGroup === true;
         const studentId = options.studentId || null;
@@ -2848,17 +2820,13 @@
         const belongsToTarget = (record, indexedPhone = '') => {
             if (!record || typeof record !== 'object') return false;
             const phone = extractPureNumber(record.phone) || extractPureNumber(indexedPhone);
-            // When deleting a whole group, only delete records belonging to its enrolled students.
-            // This prevents collateral deletion if another group happens to use the same group number.
             if (wholeGroup && !memberPhones.has(phone)) return false;
             if (!wholeGroup && phone !== targetPhone) return false;
             const recordGroup = extractPureNumber(record.group);
             const courseMatches = courseKeys.has(courseNameToKey(record.course || ''));
 
-            // رقم المجموعة هو التعريف الأساسي لسجلات المجموعة.
             if (groupNumber && recordGroup) return recordGroup === groupNumber;
 
-            // دعم السجلات القديمة التي لم يكن بها رقم مجموعة، بشرط تطابق الهاتف والكورس.
             if (!recordGroup && courseMatches) {
                 return wholeGroup ? memberPhones.has(phone) : phone === targetPhone;
             }
@@ -2880,7 +2848,6 @@
             });
         }
 
-        // اقرأ فهرس المواعيد حسب رقم الهاتف بدل قراءة المسار الكامل، لتوافق صلاحيات Firebase على مستوى الطالب.
         const appointmentReads = await Promise.all(Array.from(affectedPhones).map(async phone => ({
             phone,
             snap: await database.ref(`new_system/student_appointments/${phone}`).get()
@@ -2897,7 +2864,6 @@
             });
         });
 
-        // حذف تقدم الطالب وتسليماته الخاصة بهذه الدبلومة فقط، وعدم المساس بكورسات أخرى.
         const allProgress = progressSnap.exists() ? progressSnap.val() : {};
         affectedPhones.forEach(phone => {
             const progress = allProgress[phone];
@@ -2910,7 +2876,6 @@
         });
 
         if (wholeGroup) {
-            // حذف سجل المجموعة وطلابها وإعدادات الكورسات المرتبطة بها.
             updates[`new_system/diplomas/${diplomaId}`] = null;
             updates[`new_system/diploma_students/${diplomaId}`] = null;
             updates[`new_system/settings/diploma_course_config/${diplomaId}`] = null;
@@ -2921,7 +2886,6 @@
                 }
             });
         } else {
-            // حذف الطالب من هذه المجموعة فقط.
             updates[`new_system/diploma_students/${diplomaId}/${studentId}`] = null;
         }
 
@@ -2961,8 +2925,6 @@
         await renderDiplomaStudents();
     };
 
-    // Course capacity, Exam, and Tasks PDF settings are managed from System Settings.
-    // Keep this compatibility function because older update flows still call it.
     function renderDiplomaCoursesConfig() {
         const container = document.getElementById('diploma-courses-config-container');
         if (container) container.innerHTML = '';
@@ -3354,6 +3316,7 @@
         renderLabGroupCopies();
     };
 
+    // ✅ التعديل الرئيسي: عد التاسكات من المصدرين (student_progress + students/{id}/tasks)
     async function renderLabDipCopyStudents() {
         const container = document.getElementById('lab-group-copy-students-container');
         const dip = allDiplomas[currentLabDipId];
@@ -3375,8 +3338,8 @@
         } catch(e) {}
 
         const keys = Object.keys(students);
-        const diplomaName = (dip.name || '').trim();
         const courseList = dip.courses || [];
+        const diplomaGroupNum = extractPureNumber(dip.number);
 
         let html = `
         <div class="excel-table-container">
@@ -3413,11 +3376,33 @@
                     const courseKey = courseNameToKey(course.name);
                     const configKey = `${currentLabDipId}_${courseKey}`;
                     const totalTasks = getDynamicTasksCount(currentLabDipId, course.name);
-                    let completed = 0;
+
+                    // ✅ نجمع التاسكات من المصدرين
+                    const completedSet = new Set();
+
+                    // (1) التسجيل اليدوي من LMS (student_progress)
                     const cProg = stProg[configKey] || {};
                     for (let i = 1; i <= totalTasks; i++) {
-                        if (cProg[`task_${i}`]) completed++;
+                        if (cProg[`task_${i}`]) completedSet.add(i);
                     }
+
+                    // (2) تسجيل الحضور من مودال 📝 (students/{id}/tasks)
+                    (allStudents || []).forEach(s => {
+                        if (extractPureNumber(s.phone) !== purePhone) return;
+                        if (s.attended !== true || !s.tasks || s.canceled) return;
+                        if (courseNameToKey(s.course) !== courseKey) return;
+                        const recGroup = extractPureNumber(s.group);
+                        if (recGroup && diplomaGroupNum && recGroup !== diplomaGroupNum) return;
+                        String(s.tasks).split('|').forEach(t => {
+                            t = t.trim();
+                            if (t.startsWith('Task ')) {
+                                const num = parseInt(t.replace('Task ', '').trim());
+                                if (!isNaN(num) && num >= 1 && num <= totalTasks) completedSet.add(num);
+                            }
+                        });
+                    });
+
+                    const completed = completedSet.size;
                     const isDone = totalTasks > 0 && completed >= totalTasks;
                     const color = isDone ? '#28a745' : (completed > 0 ? '#fcc01a' : '#cc0000');
                     html += `<td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${color};">${completed} / ${totalTasks}</td>`;
@@ -4244,6 +4229,11 @@
                 } else renderPeriodsList(currentSelectedDate);
             } else renderDatesList();
             updateAdminSubmissionsBell();
+
+            // ✅ التعديل التاني: refresh تلقائي لجدول المجموعات لما يتسجل حضور/تاسكات
+            if (currentLabDipId && document.getElementById('lab-group-copy-detail-view') && document.getElementById('lab-group-copy-detail-view').style.display === 'block') {
+                renderLabDipCopyStudents();
+            }
         });
 
         database.ref('new_system/student_progress').on('value', (snapshot) => {
