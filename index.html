@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=22') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=22');
+        if (window.location.href.indexOf('?v=23') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=23');
         }
     </script>
     <title>test</title>
@@ -1144,7 +1144,6 @@
         return `${diplomaId}_${courseNameToKey(courseName)}`;
     }
 
-    // ✅ FIXED: fallback صح بالاسم مع حماية من IDs فيها underscore
     function getCourseConfig(diplomaId, courseName) {
         const key = makeCourseConfigKey(diplomaId, courseName);
         let cfg = diplomaCourseConfig[key];
@@ -1611,23 +1610,39 @@
         }
     };
 
+    // ✅ v=23: تحميل lab_course_tasks للطلاب (كان بيتم تحميلها للأدمن فقط)
     async function initPublicSettingsOnce() {
         await runWithOnlineConnection(async () => {
-            const snap = await database.ref('new_system/settings').get();
-            if (snap.exists()) {
-                const s = snap.val();
-                if (s.lab_phone !== undefined) globalLabPhone = s.lab_phone;
-                if (s.messages) Object.assign(SYSTEM_MESSAGES, s.messages);
-                if (s.blockLateBooking !== undefined) isLateBookingBlocked = s.blockLateBooking;
-                if (s.lateBookingOffset !== undefined) lateBookingOffsetHours = parseFloat(s.lateBookingOffset) || 0;
-                if (s.periodsData) globalPeriods = s.periodsData;
-                if (s.schedule) globalSchedule = s.schedule;
-                if (s.ban_rules) {
-                    if (s.ban_rules.absence) Object.assign(banRules.absence, s.ban_rules.absence);
-                    if (s.ban_rules.inactivity) Object.assign(banRules.inactivity, s.ban_rules.inactivity);
-                    if (s.ban_rules.tenure) Object.assign(banRules.tenure, s.ban_rules.tenure);
+            try {
+                const snap = await database.ref('new_system/settings').get();
+                if (snap.exists()) {
+                    const s = snap.val();
+                    if (s.lab_phone !== undefined) globalLabPhone = s.lab_phone;
+                    if (s.messages) Object.assign(SYSTEM_MESSAGES, s.messages);
+                    if (s.blockLateBooking !== undefined) isLateBookingBlocked = s.blockLateBooking;
+                    if (s.lateBookingOffset !== undefined) lateBookingOffsetHours = parseFloat(s.lateBookingOffset) || 0;
+                    if (s.periodsData) globalPeriods = s.periodsData;
+                    if (s.schedule) globalSchedule = s.schedule;
+                    if (s.ban_rules) {
+                        if (s.ban_rules.absence) Object.assign(banRules.absence, s.ban_rules.absence);
+                        if (s.ban_rules.inactivity) Object.assign(banRules.inactivity, s.ban_rules.inactivity);
+                        if (s.ban_rules.tenure) Object.assign(banRules.tenure, s.ban_rules.tenure);
+                    }
+                    if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
                 }
-                if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
+            } catch(e) {
+                console.warn('Could not load settings:', e.message);
+            }
+
+            // ✅ تحميل عدد التاسكات لكل كورس (ضروري لعرض التاسكات للطلاب)
+            try {
+                const labTasksSnap = await database.ref('new_system/lab_course_tasks').get();
+                if (labTasksSnap.exists()) {
+                    labCourseTasks = labTasksSnap.val();
+                    console.log('✅ v23 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
+                }
+            } catch(e) {
+                console.warn('⚠️ Could not load lab_course_tasks:', e.message);
             }
         });
     }
@@ -1769,6 +1784,18 @@
         clearTimeout(idleConnectionTimer);
         database.goOnline();
 
+        // ✅ v=23: listener لـ lab_course_tasks (لتحديث التاسكات لو الإدارة غيرتها)
+        const labTasksRef = database.ref('new_system/lab_course_tasks');
+        const labTasksCallback = labTasksRef.on('value', snap => {
+            labCourseTasks = snap.exists() ? snap.val() : {};
+            if (document.getElementById('student-dashboard').style.display !== 'none') {
+                renderStudentDashboard();
+            }
+        }, err => {
+            console.error('تعذّر قراءة lab_course_tasks:', err);
+        });
+        studentRealtimeRefs.push({ off: () => labTasksRef.off('value', labTasksCallback) });
+
         const studentsRef = database.ref('new_system/students');
         const studentsCallback = studentsRef.on('value', snap => {
             if (!currentStudentPhone) return;
@@ -1888,6 +1915,7 @@
         studentRealtimeRefs.push({ off: () => dipStudentsRef.off('value', dipStudentsCallback) });
     }
 
+    // ✅ v=23: studentLogin بيحمّل lab_course_tasks قبل أي حاجة
     window.studentLogin = async function() {
         const phoneRaw = document.getElementById('student-login-phone').value;
         const groupRaw = document.getElementById('student-login-group').value;
@@ -1901,7 +1929,15 @@
 
         try {
             await runWithOnlineConnection(async () => {
-                const settingsSnap = await database.ref('new_system/settings').get();
+                // ✅ v=23: تحميل lab_course_tasks أول حاجة (مهم للطلاب)
+                const [settingsSnap, labTasksSnap] = await Promise.all([
+                    database.ref('new_system/settings').get(),
+                    database.ref('new_system/lab_course_tasks').get()
+                ]);
+
+                labCourseTasks = labTasksSnap.exists() ? labTasksSnap.val() : {};
+                console.log('🔍 v23 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
+
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
                     if (s.periodsData) globalPeriods = s.periodsData;
@@ -2142,7 +2178,7 @@
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
-        // ✅ الفلتر الأقوى: التاسكات بتظهر بس للكورسات اللي عندها مواعيد قادمة
+        // فلتر: بس الكورسات اللي عندها مواعيد قادمة
         const upcomingCourseKeys = new Set();
         upcomingRecs.forEach(r => {
             upcomingCourseKeys.add(courseNameToKey(r.course));
@@ -2166,15 +2202,12 @@
                 const cfg = getCourseConfig(diplomaId, courseName);
                 const upcomingLimit = cfg.upcomingLimit;
 
-                // 1) بناء مجموعة التاسكات المكتملة من المصدرين
                 const completedSet = new Set();
 
-                // المصدر الأول: التسجيل اليدوي في student_progress
                 for (let i = 1; i <= totalTasks; i++) {
                     if (courseProgress[`task_${i}`]) completedSet.add(i);
                 }
 
-                // المصدر الثاني: تسجيل الحضور من students/{id}/tasks
                 (currentStudentRecords || []).forEach(rec => {
                     if (rec.attended !== true || !rec.tasks || rec.canceled) return;
                     if (courseNameToKey(rec.course) !== courseKey) return;
@@ -2189,11 +2222,9 @@
                     });
                 });
 
-                // 2) نلاقي آخر تاسك اتعمل
                 let lastCompletedIndex = 0;
                 completedSet.forEach(i => { if (i > lastCompletedIndex) lastCompletedIndex = i; });
 
-                // 3) نبدأ العرض من اللي بعد آخر تاسك اتعمل
                 let shownCount = 0;
                 for (let i = lastCompletedIndex + 1; i <= totalTasks; i++) {
                     if (upcomingLimit > 0 && shownCount >= upcomingLimit) break;
@@ -3382,7 +3413,6 @@
         renderLabGroupCopies();
     };
 
-    // جدول إدارة المجموعات: عمود Wires + جمع التاسكات من المصدرين
     async function renderLabDipCopyStudents() {
         const container = document.getElementById('lab-group-copy-students-container');
         const dip = allDiplomas[currentLabDipId];
@@ -5114,7 +5144,6 @@
         document.getElementById('course-config-modal').style.display = 'none';
     };
 
-    // يحفظ إعدادات الكورس على كل الدورات اللي بنفس الاسم
     window.saveCourseConfig = async function() {
         if (!editingConfigDiplomaId || !editingConfigCourseName) return;
         const limit = parseInt(document.getElementById('course-config-limit').value) || 8;
@@ -5272,7 +5301,6 @@
         return canvas.toDataURL('image/jpeg', 0.5);
     }
 
-    // PDF يتحفظ على كل الدورات اللي بنفس الاسم
     window.savePdfConfigData = async function() {
         if (!currentEditingPdfDiplomaId || !currentEditingPdfCourseName) return;
         const diplomaId = currentEditingPdfDiplomaId;
