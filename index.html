@@ -1691,11 +1691,24 @@
             let allSt = [];
             if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
 
-            let serverRecords = allSt.filter(s =>
-                extractPureNumber(s.phone) === currentStudentPhone &&
-                extractPureNumber(s.group) === currentStudentGroup &&
-                !s.canceled && s.date && s.date !== "بدون موعد"
+            // تحميل مواعيد الطالب من Firebase بعد كل دخول.
+            // نعتمد على الهاتف + رقم الدورة، ومع السجلات القديمة التي لا تحتوي
+            // على group صحيح نتحقق من أن الكورس تابع للدورة الحالية.
+            const selectedDiplomas = (currentStudentDiplomaData || []).filter(d =>
+                extractPureNumber(d.dipNumber) === currentStudentGroup
             );
+            const selectedCourseKeys = new Set();
+            selectedDiplomas.forEach(d => (d.courses || []).forEach(c =>
+                selectedCourseKeys.add(courseNameToKey(c.name))
+            ));
+
+            let serverRecords = allSt.filter(s => {
+                if (extractPureNumber(s.phone) !== currentStudentPhone) return false;
+                if (s.canceled || !s.date || s.date === "بدون موعد") return false;
+                const sameGroup = extractPureNumber(s.group) === currentStudentGroup;
+                const legacySameCourse = selectedCourseKeys.has(courseNameToKey(s.course || ''));
+                return sameGroup || legacySameCourse;
+            });
 
             let serverIds = new Set(serverRecords.map(r => r.id));
             currentStudentRecords.forEach(r => {
@@ -1846,12 +1859,24 @@
 
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
-                let matchingRecords = allSt.filter(s =>
-                    extractPureNumber(s.phone) === phone &&
-                    extractPureNumber(s.group) === group &&
-                    !s.canceled &&
-                    s.date && s.date !== "بدون موعد"
-                );
+                // استرجاع المواعيد المحفوظة عند تسجيل الدخول من جديد.
+                // بعض المواعيد القديمة قد يكون حقل group فيها مفقود/مختلف،
+                // لذلك نسمح بها فقط إذا كان الكورس نفسه تابعاً للدورة الصحيحة.
+                const validCourseKeys = new Set();
+                validDiplomaMatches.forEach(m => {
+                    const dip = diplomasData[m.diplomaId];
+                    (dip && dip.courses ? dip.courses : []).forEach(c =>
+                        validCourseKeys.add(courseNameToKey(c.name))
+                    );
+                });
+
+                let matchingRecords = allSt.filter(s => {
+                    if (extractPureNumber(s.phone) !== phone) return false;
+                    if (s.canceled || !s.date || s.date === "بدون موعد") return false;
+                    const sameGroup = extractPureNumber(s.group) === group;
+                    const legacySameCourse = validCourseKeys.has(courseNameToKey(s.course || ''));
+                    return sameGroup || legacySameCourse;
+                });
 
                 if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
                     if (diplomaMatches.length > 0) {
