@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=6') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=6');
+        if (window.location.href.indexOf('?v=7') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=7');
         }
     </script>
     <title>test</title>
@@ -1001,9 +1001,10 @@
     let idleConnectionTimer = null;
     function scheduleStudentOffline() {
         if (auth.currentUser) return;
+        if (currentStudentPhone) return;
         clearTimeout(idleConnectionTimer);
         idleConnectionTimer = setTimeout(() => {
-            if (!auth.currentUser) database.goOffline();
+            if (!auth.currentUser && !currentStudentPhone) database.goOffline();
         }, 4000);
     }
 
@@ -1619,6 +1620,9 @@
         detachStudentRealtimeListeners();
         if (!currentStudentPhone) return;
 
+        clearTimeout(idleConnectionTimer);
+        database.goOnline();
+
         const studentsRef = database.ref('students');
         const studentsCallback = studentsRef.on('value', snap => {
             if (!currentStudentPhone) return;
@@ -1814,66 +1818,17 @@
         let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-        let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
-        let dipHeaderHtml = '';
-        if (dip) {
-            dipHeaderHtml = `
-                <div class="dash-meta" style="margin-top: 6px;">
-                    📚 ${escapeForAttr(dip.dipName)} &nbsp;•&nbsp; 🔢 رقم الدورة: ${escapeForAttr(dip.dipNumber)}
-                </div>
-            `;
-        }
-
         let html = `
             <div class="dash-header">
                 <div>
                     <div class="dash-greeting">👋 أهلاً، ${escapeForAttr(currentStudentName)}</div>
-                    <div class="dash-meta">📞 ${currentStudentPhone} &nbsp;•&nbsp; 👥 المجموعة ${currentStudentGroup}</div>
-                    ${dipHeaderHtml}
+                    <div class="dash-meta">📞 ${currentStudentPhone}</div>
                 </div>
                 <button class="back-btn" onclick="studentLogout()">خروج</button>
             </div>
         `;
 
-        if (dip) {
-            html += `
-                <div class="dash-section">
-                    <h3 class="dash-section-title">🎓 بيانات دورتي</h3>
-                    <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 15px; border-right: 4px solid #fcc01a;">
-                        <div style="font-size: 18px; font-weight: bold; color: #fcc01a; margin-bottom: 8px;">
-                            ${escapeForAttr(dip.dipName)}
-                        </div>
-                        <div style="color: #ddd; font-size: 14px; line-height: 1.8;">
-                            <div>🔢 رقم الدورة: <b style="color: white;">${escapeForAttr(dip.dipNumber)}</b></div>
-                            <div>📚 عدد الكورسات: <b style="color: white;">${dip.courses.length}</b></div>
-                            <div>💰 الرسوم: <b style="color: ${dip.paid >= dip.price ? '#28a745' : '#ff4d4d'};">${dip.paid} / ${dip.price} ج.م</b></div>
-                        </div>
-                        ${dip.courses.length > 0 ? `
-                            <div style="margin-top: 12px; border-top: 1px solid rgba(252,192,26,0.3); padding-top: 10px;">
-                                <div style="color: #fcc01a; font-weight: bold; margin-bottom: 6px; font-size: 14px;">الكورسات:</div>
-                                ${dip.courses.map(c => {
-                                    const att = dip.attendance[c.name] || {};
-                                    const attended = Object.values(att).filter(v => v === true).length;
-                                    const pct = c.lectures > 0 ? (attended / c.lectures * 100) : 0;
-                                    return `
-                                        <div style="margin-bottom: 8px;">
-                                            <div style="display:flex; justify-content:space-between; color: #ddd; font-size: 13px; margin-bottom: 3px;">
-                                                <span>${escapeForAttr(c.name)}</span>
-                                                <span>${attended}/${c.lectures}</span>
-                                            </div>
-                                            <div class="progress-container" style="height: 5px; background: rgba(0,0,0,0.3);">
-                                                <div class="progress-bar" style="width: ${pct}%;"></div>
-                                            </div>
-                                        </div>
-                                    `;
-                                }).join('')}
-                            </div>
-                        ` : ''}
-                    </div>
-                </div>
-            `;
-        }
-
+        // الإحصائيات
         html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">📊 إحصائياتي</h3>
@@ -1894,6 +1849,7 @@
             </div>
         `;
 
+        // المواعيد القادمة
         html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">
@@ -1917,6 +1873,7 @@
         }
         html += `</div>`;
 
+        // التاسكات القادمة
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
@@ -2017,9 +1974,16 @@
                     course: course, date: date, time: time,
                     attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString()
                 };
-                await database.ref('students').push(record);
+                const pushRef = await database.ref('students').push(record);
+
+                // تحديث فوري محلي
+                currentStudentRecords.push({ id: pushRef.key, ...record });
+
+                database.goOnline();
+                attachStudentRealtimeListeners();
 
                 closeBookAppointmentModal();
+                renderStudentDashboard();
                 alert('تم حجز الموعد بنجاح! ✅');
             });
         } catch(e) { showErrorModal('خطأ: ' + e.message); }
@@ -3118,6 +3082,14 @@
         if (!confirm('تأكيد إلغاء الموعد؟')) return;
         runWithOnlineConnection(async () => {
             await database.ref('students/' + id).update({ canceled: true });
+
+            const idx = currentStudentRecords.findIndex(r => r.id === id);
+            if (idx !== -1) currentStudentRecords.splice(idx, 1);
+
+            database.goOnline();
+            attachStudentRealtimeListeners();
+
+            renderStudentDashboard();
             alert('تم الإلغاء.');
         }).catch(e => alert(e.message));
     };
