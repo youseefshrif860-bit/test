@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=5') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=5');
+        if (window.location.href.indexOf('?v=6') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=6');
         }
     </script>
     <title>test</title>
@@ -958,7 +958,6 @@
         return String(name || '').trim().toLowerCase().replace(/\s+/g, '_').replace(/[^a-z0-9_]/g, '');
     }
 
-    // مطابقة ذكية لأسماء الدورات والكورسات (case-insensitive + trim + إزالة المسافات الزائدة)
     function findCourseTasksSmart(diplomaName, courseName) {
         if (!labCourseTasks || !diplomaName || !courseName) return 0;
         const norm = (s) => String(s || '').trim().toLowerCase().replace(/\s+/g, ' ');
@@ -978,7 +977,6 @@
         return 0;
     }
 
-    // عرض اسم الدورة في إدارة المعمل (بإضافة Practical)
     function labDisplayName(name) {
         const n = String(name || '').trim();
         if (!n) return n;
@@ -986,7 +984,6 @@
         return n + ' Practical';
     }
 
-    // حساب تاريخ نهاية الدورة لإدارة الدورات (2 شهور)
     function getEndDateCourses(dip) {
         if (!dip) return null;
         if (dip.end_date_courses) return dip.end_date_courses;
@@ -994,7 +991,6 @@
         return dip.end_date || null;
     }
 
-    // حساب تاريخ نهاية الدورة لإدارة المعمل (3 شهور)
     function getEndDateLab(dip) {
         if (!dip) return null;
         if (dip.end_date_lab) return dip.end_date_lab;
@@ -1341,7 +1337,6 @@
         return `${targetYear}-${String(finalMonth+1).padStart(2,'0')}-${String(finalDay).padStart(2,'0')}`;
     }
 
-    // في إضافة دورة جديدة: end_date قابل للتعديل + يتحسب تلقائي عند اختيار start_date
     window.autoCalcDipEndDate = function() {
         const startVal = document.getElementById('new-dip-start-date').value;
         document.getElementById('new-dip-end-date').value = calcEndDate(startVal, 2);
@@ -1350,7 +1345,6 @@
     let editingDipId = null;
     let editingLabDipId = null;
 
-    // في تعديل التواريخ: يتحسب تلقائي عند تغيير start_date، لكن المستخدم يقدر يعدل end_date
     window.handleEditStartChange = function() {
         const startVal = document.getElementById('edit-dip-start').value;
         if (!startVal) return;
@@ -1448,6 +1442,7 @@
     /* ============ NAVIGATION ============ */
 
     function goHome() {
+        detachStudentRealtimeListeners();
         document.getElementById('admin-main-menu').style.display = 'none';
         document.getElementById('admin-view').style.display = 'none';
         document.getElementById('course-management-view').style.display = 'none';
@@ -1459,6 +1454,12 @@
         document.getElementById('manage-phone').value = '';
         document.getElementById('manage-group').value = '';
         document.getElementById('manage-results').innerHTML = '';
+        currentStudentPhone = null;
+        currentStudentGroup = null;
+        currentStudentName = null;
+        currentStudentRecords = [];
+        currentStudentProgress = {};
+        currentStudentDiplomaData = [];
         scheduleStudentOffline();
     }
 
@@ -1603,6 +1604,83 @@
     let currentStudentRecords = [];
     let currentStudentProgress = {};
     let currentStudentDiplomaData = [];
+    let currentStudentManageProgress = {};
+    let activeStudentManagePhone = null;
+
+    // Real-time listeners للطالب
+    let studentRealtimeRefs = [];
+
+    function detachStudentRealtimeListeners() {
+        studentRealtimeRefs.forEach(ref => { try { ref.off(); } catch(e){} });
+        studentRealtimeRefs = [];
+    }
+
+    function attachStudentRealtimeListeners() {
+        detachStudentRealtimeListeners();
+        if (!currentStudentPhone) return;
+
+        const studentsRef = database.ref('students');
+        const studentsCallback = studentsRef.on('value', snap => {
+            if (!currentStudentPhone) return;
+            let allSt = [];
+            if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
+            currentStudentRecords = allSt.filter(s =>
+                extractPureNumber(s.phone) === currentStudentPhone &&
+                extractPureNumber(s.group) === currentStudentGroup &&
+                !s.canceled && s.date && s.date !== "بدون موعد"
+            );
+            if (document.getElementById('student-dashboard').style.display !== 'none') {
+                renderStudentDashboard();
+            }
+        });
+        studentRealtimeRefs.push({ off: () => studentsRef.off('value', studentsCallback) });
+
+        const progRef = database.ref('student_progress/' + currentStudentPhone);
+        const progCallback = progRef.on('value', snap => {
+            if (!currentStudentPhone) return;
+            currentStudentProgress = snap.exists() ? snap.val() : {};
+            currentStudentManageProgress = currentStudentProgress;
+            if (document.getElementById('student-dashboard').style.display !== 'none') {
+                renderStudentDashboard();
+            }
+        });
+        studentRealtimeRefs.push({ off: () => progRef.off('value', progCallback) });
+
+        const dipStudentsRef = database.ref('diploma_students');
+        const dipStudentsCallback = dipStudentsRef.on('value', snap => {
+            if (!currentStudentPhone) return;
+            const data = snap.exists() ? snap.val() : {};
+            let matches = [];
+            Object.keys(data).forEach(dipId => {
+                const stds = data[dipId] || {};
+                Object.keys(stds).forEach(sid => {
+                    const st = stds[sid];
+                    if (extractPureNumber(st.phone) === currentStudentPhone) {
+                        matches.push({ diplomaId: dipId, studentId: sid, ...st });
+                    }
+                });
+            });
+            currentStudentDiplomaData = matches.filter(m => {
+                const dip = allDiplomas[m.diplomaId];
+                return dip && extractPureNumber(dip.number) === currentStudentGroup;
+            }).map(m => ({
+                diplomaId: m.diplomaId,
+                studentId: m.studentId,
+                name: m.name,
+                phone: m.phone,
+                paid: m.paid || 0,
+                attendance: m.attendance || {},
+                dipName: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].name) || 'دورة',
+                dipNumber: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].number) || '',
+                courses: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].courses) || [],
+                price: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].price) || 0
+            }));
+            if (document.getElementById('student-dashboard').style.display !== 'none') {
+                renderStudentDashboard();
+            }
+        });
+        studentRealtimeRefs.push({ off: () => dipStudentsRef.off('value', dipStudentsCallback) });
+    }
 
     window.studentLogin = async function() {
         const phoneRaw = document.getElementById('student-login-phone').value;
@@ -1617,13 +1695,7 @@
 
         try {
             await runWithOnlineConnection(async () => {
-                const [studentsSnap, progSnap, dipSnap, settingsSnap] = await Promise.all([
-                    database.ref('students').get(),
-                    database.ref('student_progress/' + phone).get(),
-                    database.ref('diploma_students').get(),
-                    database.ref('settings').get()
-                ]);
-
+                const settingsSnap = await database.ref('settings').get();
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
                     if (s.courses) Object.keys(s.courses).forEach(k => { if (LMS_COURSES[k]) Object.assign(LMS_COURSES[k], s.courses[k]); });
@@ -1635,9 +1707,37 @@
                     if (s.messages) Object.assign(SYSTEM_MESSAGES, s.messages);
                 }
 
+                const [dipSnap, diplomasSnap, studentsSnap, blockSnap, progSnap] = await Promise.all([
+                    database.ref('diploma_students').get(),
+                    database.ref('diplomas').get(),
+                    database.ref('students').get(),
+                    database.ref('blocked_phones/' + phone).get(),
+                    database.ref('student_progress/' + phone).get()
+                ]);
+
+                const dipStudentsData = dipSnap.exists() ? dipSnap.val() : {};
+                const diplomasData = diplomasSnap.exists() ? diplomasSnap.val() : {};
+                allDiplomas = diplomasData;
+
+                let diplomaMatches = [];
+                Object.keys(dipStudentsData).forEach(dipId => {
+                    const stds = dipStudentsData[dipId] || {};
+                    Object.keys(stds).forEach(sid => {
+                        const st = stds[sid];
+                        if (extractPureNumber(st.phone) === phone) {
+                            diplomaMatches.push({ diplomaId: dipId, studentId: sid, ...st });
+                        }
+                    });
+                });
+
+                let validDiplomaMatches = diplomaMatches.filter(m => {
+                    const dip = diplomasData[m.diplomaId];
+                    if (!dip) return false;
+                    return extractPureNumber(dip.number) === group;
+                });
+
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
-
                 let matchingRecords = allSt.filter(s =>
                     extractPureNumber(s.phone) === phone &&
                     extractPureNumber(s.group) === group &&
@@ -1645,38 +1745,42 @@
                     s.date && s.date !== "بدون موعد"
                 );
 
-                let diplomaMatches = [];
-                if (dipSnap.exists()) {
-                    let dData = dipSnap.val();
-                    Object.keys(dData).forEach(dipId => {
-                        let diplStds = dData[dipId] || {};
-                        Object.keys(diplStds).forEach(sid => {
-                            let st = diplStds[sid];
-                            if (extractPureNumber(st.phone) === phone) diplomaMatches.push({ diplomaId: dipId, studentId: sid, ...st });
-                        });
-                    });
-                }
-
-                if (matchingRecords.length === 0 && diplomaMatches.length === 0) {
-                    showErrorModal("لا يوجد حساب مسجّل بهذا الرقم ورقم المجموعة. يرجى التواصل مع الإدارة.");
+                if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
+                    if (diplomaMatches.length > 0) {
+                        showErrorModal("رقم المجموعة غير مطابق للدورة المسجل بها. راجع الإدارة.");
+                    } else {
+                        showErrorModal("الحساب غير مسجل. يرجى مراجعة الإدارة.");
+                    }
                     return;
                 }
 
-                const blockSnap = await database.ref('blocked_phones/' + phone).get();
                 if (blockSnap.exists()) { showErrorModal(SYSTEM_MESSAGES.blocked); return; }
 
                 currentStudentPhone = phone;
                 currentStudentGroup = group;
                 currentStudentProgress = progSnap.exists() ? progSnap.val() : {};
-                currentStudentDiplomaData = diplomaMatches;
+                currentStudentDiplomaData = validDiplomaMatches.map(m => ({
+                    diplomaId: m.diplomaId,
+                    studentId: m.studentId,
+                    name: m.name,
+                    phone: m.phone,
+                    paid: m.paid || 0,
+                    attendance: m.attendance || {},
+                    dipName: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].name) || 'دورة',
+                    dipNumber: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].number) || '',
+                    courses: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].courses) || [],
+                    price: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].price) || 0
+                }));
 
                 matchingRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
                 currentStudentRecords = matchingRecords;
-                currentStudentName = matchingRecords.length > 0 ? matchingRecords[matchingRecords.length - 1].name : (diplomaMatches[0] ? diplomaMatches[0].name : 'طالب');
+                currentStudentName = (validDiplomaMatches.length > 0 ? validDiplomaMatches[0].name : null)
+                    || (matchingRecords.length > 0 ? matchingRecords[matchingRecords.length - 1].name : 'طالب');
 
                 currentStudentManageProgress = currentStudentProgress;
                 activeStudentManagePhone = phone;
 
+                attachStudentRealtimeListeners();
                 renderStudentDashboard();
             });
         } catch(e) {
@@ -1687,6 +1791,7 @@
     };
 
     window.studentLogout = function() {
+        detachStudentRealtimeListeners();
         currentStudentPhone = null;
         currentStudentGroup = null;
         currentStudentName = null;
@@ -1709,14 +1814,67 @@
         let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
+        let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
+        let dipHeaderHtml = '';
+        if (dip) {
+            dipHeaderHtml = `
+                <div class="dash-meta" style="margin-top: 6px;">
+                    📚 ${escapeForAttr(dip.dipName)} &nbsp;•&nbsp; 🔢 رقم الدورة: ${escapeForAttr(dip.dipNumber)}
+                </div>
+            `;
+        }
+
         let html = `
             <div class="dash-header">
                 <div>
-                    <div class="dash-greeting">👋 أهلاً، ${currentStudentName}</div>
+                    <div class="dash-greeting">👋 أهلاً، ${escapeForAttr(currentStudentName)}</div>
                     <div class="dash-meta">📞 ${currentStudentPhone} &nbsp;•&nbsp; 👥 المجموعة ${currentStudentGroup}</div>
+                    ${dipHeaderHtml}
                 </div>
                 <button class="back-btn" onclick="studentLogout()">خروج</button>
             </div>
+        `;
+
+        if (dip) {
+            html += `
+                <div class="dash-section">
+                    <h3 class="dash-section-title">🎓 بيانات دورتي</h3>
+                    <div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 15px; border-right: 4px solid #fcc01a;">
+                        <div style="font-size: 18px; font-weight: bold; color: #fcc01a; margin-bottom: 8px;">
+                            ${escapeForAttr(dip.dipName)}
+                        </div>
+                        <div style="color: #ddd; font-size: 14px; line-height: 1.8;">
+                            <div>🔢 رقم الدورة: <b style="color: white;">${escapeForAttr(dip.dipNumber)}</b></div>
+                            <div>📚 عدد الكورسات: <b style="color: white;">${dip.courses.length}</b></div>
+                            <div>💰 الرسوم: <b style="color: ${dip.paid >= dip.price ? '#28a745' : '#ff4d4d'};">${dip.paid} / ${dip.price} ج.م</b></div>
+                        </div>
+                        ${dip.courses.length > 0 ? `
+                            <div style="margin-top: 12px; border-top: 1px solid rgba(252,192,26,0.3); padding-top: 10px;">
+                                <div style="color: #fcc01a; font-weight: bold; margin-bottom: 6px; font-size: 14px;">الكورسات:</div>
+                                ${dip.courses.map(c => {
+                                    const att = dip.attendance[c.name] || {};
+                                    const attended = Object.values(att).filter(v => v === true).length;
+                                    const pct = c.lectures > 0 ? (attended / c.lectures * 100) : 0;
+                                    return `
+                                        <div style="margin-bottom: 8px;">
+                                            <div style="display:flex; justify-content:space-between; color: #ddd; font-size: 13px; margin-bottom: 3px;">
+                                                <span>${escapeForAttr(c.name)}</span>
+                                                <span>${attended}/${c.lectures}</span>
+                                            </div>
+                                            <div class="progress-container" style="height: 5px; background: rgba(0,0,0,0.3);">
+                                                <div class="progress-bar" style="width: ${pct}%;"></div>
+                                            </div>
+                                        </div>
+                                    `;
+                                }).join('')}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `;
+        }
+
+        html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">📊 إحصائياتي</h3>
                 <div class="stats-grid">
@@ -1734,6 +1892,9 @@
                     </div>
                 </div>
             </div>
+        `;
+
+        html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">
                     <span>📅 مواعيدي القادمة</span>
@@ -1741,13 +1902,14 @@
                 </h3>
         `;
 
-        if (upcomingRecs.length === 0) html += `<div class="empty-state">لا توجد مواعيد قادمة</div>`;
-        else {
+        if (upcomingRecs.length === 0) {
+            html += `<div class="empty-state">لا توجد مواعيد قادمة</div>`;
+        } else {
             upcomingRecs.forEach(app => {
                 html += `<div class="appt-card">
                     <div>
-                        <div class="appt-course">${app.course}</div>
-                        <div class="appt-date">📅 ${app.date} &nbsp;•&nbsp; ⏰ ${app.time}</div>
+                        <div class="appt-course">${escapeForAttr(app.course)}</div>
+                        <div class="appt-date">📅 ${escapeForAttr(app.date)} &nbsp;•&nbsp; ⏰ ${escapeForAttr(app.time)}</div>
                     </div>
                     <button class="delete-btn" onclick="cancelMyApp('${app.id}')">إلغاء</button>
                 </div>`;
@@ -1778,7 +1940,7 @@
                 let tKey = `task_${num}`;
                 let sub = currentStudentProgress[cKey] && currentStudentProgress[cKey].submissions && currentStudentProgress[cKey].submissions[tKey];
                 let bellHtml = '';
-                if (sub && sub.comment) bellHtml = `<span title="ملاحظة: ${sub.comment}" style="cursor:help; margin-right: 5px;">🔔</span>`;
+                if (sub && sub.comment) bellHtml = `<span title="ملاحظة: ${escapeForAttr(sub.comment)}" style="cursor:help; margin-right: 5px;">🔔</span>`;
                 tasksHtml += `<div class="task-mini">
                     <div style="color: #fcc01a; font-weight: bold; font-size: 15px;">Task ${num} - ${courseCfg.title} ${bellHtml}</div>
                     <button class="admin-btn" style="padding: 6px 12px; font-size: 12px;" onclick="viewStudentTask('${cKey}', '${tKey}', ${num})">عرض</button>
@@ -1788,33 +1950,6 @@
 
         if (!tasksHtml) tasksHtml = `<div class="empty-state">لا توجد تاسكات قادمة حالياً 🎉</div>`;
         html += tasksHtml + `</div>`;
-
-        if (currentStudentDiplomaData.length > 0) {
-            html += `<div class="dash-section">
-                <h3 class="dash-section-title">🎓 حضور الدورات</h3>`;
-            currentStudentDiplomaData.forEach(dipData => {
-                html += `<div style="background: rgba(255,255,255,0.08); border-radius: 8px; padding: 15px; margin-bottom: 10px;">
-                    <div style="color: #fcc01a; font-weight: bold; margin-bottom: 10px;">دورة رقم: ${dipData.diplomaId}</div>`;
-                let att = dipData.attendance || {};
-                Object.keys(att).forEach(courseName => {
-                    let ca = att[courseName] || {};
-                    let total = Object.keys(ca).length;
-                    let attended = Object.values(ca).filter(v => v === true).length;
-                    let pct = total > 0 ? (attended/total*100) : 0;
-                    html += `<div style="margin-bottom: 10px; color: #ddd; font-size: 14px;">
-                        <div style="display:flex; justify-content:space-between; margin-bottom:5px;">
-                            <strong style="color: white;">${courseName}</strong>
-                            <span>${attended}/${total}</span>
-                        </div>
-                        <div class="progress-container" style="height: 6px; background: rgba(0,0,0,0.3);">
-                            <div class="progress-bar" style="width: ${pct}%;"></div>
-                        </div>
-                    </div>`;
-                });
-                html += `</div>`;
-            });
-            html += `</div>`;
-        }
 
         document.getElementById('student-dashboard-content').innerHTML = html;
     }
@@ -1884,17 +2019,7 @@
                 };
                 await database.ref('students').push(record);
 
-                const newSnap = await database.ref('students').get();
-                let allNew = [];
-                if (newSnap.exists()) newSnap.forEach(c => allNew.push({ id: c.key, ...c.val() }));
-                currentStudentRecords = allNew.filter(s =>
-                    extractPureNumber(s.phone) === currentStudentPhone &&
-                    extractPureNumber(s.group) === currentStudentGroup &&
-                    !s.canceled && s.date && s.date !== "بدون موعد"
-                );
-
                 closeBookAppointmentModal();
-                renderStudentDashboard();
                 alert('تم حجز الموعد بنجاح! ✅');
             });
         } catch(e) { showErrorModal('خطأ: ' + e.message); }
@@ -2994,19 +3119,6 @@
         runWithOnlineConnection(async () => {
             await database.ref('students/' + id).update({ canceled: true });
             alert('تم الإلغاء.');
-            if (currentStudentPhone && document.getElementById('student-dashboard').style.display !== 'none') {
-                const snap = await database.ref('students').get();
-                let allSt = [];
-                if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
-                currentStudentRecords = allSt.filter(s =>
-                    extractPureNumber(s.phone) === currentStudentPhone &&
-                    extractPureNumber(s.group) === currentStudentGroup &&
-                    !s.canceled && s.date && s.date !== "بدون موعد"
-                );
-                renderStudentDashboard();
-            } else {
-                await searchMyVisits();
-            }
         }).catch(e => alert(e.message));
     };
 
@@ -3038,8 +3150,6 @@
 
     let activeViewerCourseKey = null;
     let activeViewerTaskKey = null;
-    let activeStudentManagePhone = null;
-    let currentStudentManageProgress = {};
 
     function handleSearch(query) {
         const container = document.getElementById('search-suggestions'); if (!query.trim()) { container.style.display = 'none'; return; }
