@@ -1728,6 +1728,27 @@
         });
         studentRealtimeRefs.push({ off: () => studentsRef.off('value', studentsCallback) });
 
+        // Listener مخصص لمواعيد الطالب حتى تظل ظاهرة بعد الخروج والدخول.
+        const appointmentRef = database.ref('student_appointments/' + currentStudentPhone);
+        const appointmentCallback = appointmentRef.on('value', snap => {
+            if (!currentStudentPhone || !snap.exists()) return;
+            const indexed = [];
+            snap.forEach(c => {
+                const a = { id: c.key, ...c.val() };
+                if (a.canceled || !a.date || a.date === "بدون موعد") return;
+                const sameGroup = extractPureNumber(a.group) === currentStudentGroup;
+                if (sameGroup) indexed.push(a);
+            });
+            indexed.forEach(a => {
+                const idx = currentStudentRecords.findIndex(r => r.id === a.id);
+                if (idx === -1) currentStudentRecords.push(a);
+                else currentStudentRecords[idx] = { ...currentStudentRecords[idx], ...a };
+            });
+            currentStudentRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
+            if (document.getElementById('student-dashboard').style.display !== 'none') renderStudentDashboard();
+        });
+        studentRealtimeRefs.push({ off: () => appointmentRef.off('value', appointmentCallback) });
+
         const progRef = database.ref('student_progress/' + currentStudentPhone);
         const progCallback = progRef.on('value', snap => {
             if (!currentStudentPhone) return;
@@ -1808,12 +1829,13 @@
                     if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
                 }
 
-                const [dipSnap, diplomasSnap, studentsSnap, blockSnap, progSnap] = await Promise.all([
+                const [dipSnap, diplomasSnap, studentsSnap, blockSnap, progSnap, appointmentIndexSnap] = await Promise.all([
                     database.ref('diploma_students').get(),
                     database.ref('diplomas').get(),
                     database.ref('students').get(),
                     database.ref('blocked_phones/' + phone).get(),
-                    database.ref('student_progress/' + phone).get()
+                    database.ref('student_progress/' + phone).get(),
+                    database.ref('student_appointments/' + phone).get()
                 ]);
 
                 const dipStudentsData = dipSnap.exists() ? dipSnap.val() : {};
@@ -1877,6 +1899,34 @@
                     const legacySameCourse = validCourseKeys.has(courseNameToKey(s.course || ''));
                     return sameGroup || legacySameCourse;
                 });
+
+                // نسخة مستقلة لمواعيد كل طالب. هذا يمنع اختفاء المواعيد بعد Logout/Login
+                // حتى لو حدث تأخير في قراءة قائمة students العامة.
+                if (appointmentIndexSnap.exists()) {
+                    appointmentIndexSnap.forEach(c => {
+                        const a = { id: c.key, ...c.val() };
+                        if (a.canceled || !a.date || a.date === "بدون موعد") return;
+                        const sameGroup = extractPureNumber(a.group) === group;
+                        const sameCourse = validCourseKeys.has(courseNameToKey(a.course || ''));
+                        if (!sameGroup && !sameCourse) return;
+                        if (!matchingRecords.some(r => r.id === a.id)) matchingRecords.push(a);
+                    });
+                }
+
+                // ترحيل المواعيد القديمة تلقائياً إلى المسار الجديد مرة واحدة.
+                // لا ننتظر العملية حتى لا نعطل دخول الطالب.
+                const appointmentIndexUpdates = {};
+                matchingRecords.forEach(r => {
+                    if (r.id) appointmentIndexUpdates[r.id] = {
+                        name: r.name || '', phone: phone, group: r.group || group,
+                        course: r.course || '', date: r.date || '', time: r.time || '',
+                        attended: r.attended === true, canceled: r.canceled === true,
+                        timestamp: r.timestamp || ''
+                    };
+                });
+                if (Object.keys(appointmentIndexUpdates).length) {
+                    database.ref('student_appointments/' + phone).update(appointmentIndexUpdates).catch(()=>{});
+                }
 
                 if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
                     if (diplomaMatches.length > 0) {
@@ -2171,8 +2221,13 @@
                     course: course, date: date, time: time,
                     attended: false, tasks: null, canceled: false, timestamp: new Date().toLocaleString()
                 };
-                const pushRef = await database.ref('students').push(record);
-                const newRecord = { id: pushRef.key, ...record };
+                const pushRef = database.ref('students').push();
+                const newId = pushRef.key;
+                const updates = {};
+                updates['students/' + newId] = record;
+                updates['student_appointments/' + currentStudentPhone + '/' + newId] = record;
+                await database.ref().update(updates);
+                const newRecord = { id: newId, ...record };
 
                 locallyAddedIds.add(newRecord.id);
                 currentStudentRecords.push(newRecord);
@@ -3327,7 +3382,10 @@
     window.cancelMyApp = function(id) {
         if (!confirm('تأكيد إلغاء الموعد؟')) return;
         runWithOnlineConnection(async () => {
-            await database.ref('students/' + id).update({ canceled: true });
+            const cancelUpdates = {};
+            cancelUpdates['students/' + id + '/canceled'] = true;
+            if (currentStudentPhone) cancelUpdates['student_appointments/' + currentStudentPhone + '/' + id + '/canceled'] = true;
+            await database.ref().update(cancelUpdates);
             locallyAddedIds.delete(id);
             const idx = currentStudentRecords.findIndex(r => r.id === id);
             if (idx !== -1) currentStudentRecords.splice(idx, 1);
