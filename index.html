@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=17') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=17');
+        if (window.location.href.indexOf('?v=19') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=19');
         }
     </script>
     <title>test</title>
@@ -1008,6 +1008,15 @@
         return dip.end_date || null;
     }
 
+    // Use the same active-period rule shown in Lab group management:
+    // a group remains active until its lab end date. A missing end date
+    // does not block an existing enrollment.
+    function isLabDiplomaActive(dip, dateString = getLocalDateString()) {
+        if (!dip) return false;
+        const endDate = getEndDateLab(dip);
+        return !endDate || dateString <= endDate;
+    }
+
     let idleConnectionTimer = null;
     function scheduleStudentOffline() {
         if (auth.currentUser) return;
@@ -1846,10 +1855,7 @@
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
                 if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
-                const labStart = dip.start_date;
-                const labEnd = getEndDateLab(dip);
-                if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
-                return false;
+                return isLabDiplomaActive(dip, todayStr);
             }).map(m => ({
                 diplomaId: m.diplomaId,
                 studentId: m.studentId,
@@ -1923,11 +1929,7 @@
                 const todayStr = getLocalDateString();
                 let activeDiplomaMatches = diplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
-                    if (!dip) return false;
-                    const labStart = dip.start_date;
-                    const labEnd = getEndDateLab(dip);
-                    if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
-                    return false;
+                    return isLabDiplomaActive(dip, todayStr);
                 });
 
                 if (diplomaMatches.length > 0 && activeDiplomaMatches.length === 0) {
@@ -2291,12 +2293,7 @@
         const todayStr = getLocalDateString();
         (currentStudentDiplomaData || []).forEach(dipData => {
             const dip = allDiplomas[dipData.diplomaId];
-            if (dip) {
-                const labEnd = getEndDateLab(dip);
-                const labStart = dip.start_date;
-                if (labStart && labEnd && (todayStr < labStart || todayStr > labEnd)) return;
-                if (!labStart && labEnd && todayStr > labEnd) return;
-            }
+            if (dip && !isLabDiplomaActive(dip, todayStr)) return;
 
             (dipData.courses || []).forEach(course => {
                 const key = `${dipData.diplomaId}_${courseNameToKey(course.name)}`;
@@ -2808,14 +2805,148 @@
         });
     };
 
+    // حذف بيانات الطالب/المجموعة المرتبطة بالدبلومة، مع الحفاظ على تسجيلات الطالب في مجموعات أخرى.
+    async function removeDiplomaRelatedData(diplomaId, options = {}) {
+        const wholeGroup = options.wholeGroup === true;
+        const studentId = options.studentId || null;
+
+        const [dipSnap, membersSnap, studentsSnap, progressSnap, configSnap] = await Promise.all([
+            database.ref(`new_system/diplomas/${diplomaId}`).get(),
+            database.ref(`new_system/diploma_students/${diplomaId}`).get(),
+            database.ref('new_system/students').get(),
+            database.ref('new_system/student_progress').get(),
+            database.ref('new_system/settings/diploma_course_config').get()
+        ]);
+
+        const dip = dipSnap.exists() ? dipSnap.val() : (allDiplomas[diplomaId] || {});
+        const members = membersSnap.exists() ? membersSnap.val() : {};
+        const targetMember = !wholeGroup && studentId ? members[studentId] : null;
+        if (!wholeGroup && (!studentId || !targetMember)) {
+            throw new Error('لم يتم العثور على سجل الطالب داخل المجموعة.');
+        }
+
+        const groupNumber = extractPureNumber(dip.number);
+        const courseKeys = new Set((dip.courses || []).map(c => courseNameToKey(c && c.name)));
+        const memberPhones = new Set();
+        if (wholeGroup) {
+            Object.values(members).forEach(st => {
+                const phone = extractPureNumber(st && st.phone);
+                if (phone) memberPhones.add(phone);
+            });
+        } else {
+            const phone = extractPureNumber(targetMember && targetMember.phone);
+            if (phone) memberPhones.add(phone);
+        }
+        const targetPhone = wholeGroup ? null : extractPureNumber(targetMember && targetMember.phone);
+        if (!wholeGroup && !targetPhone) {
+            throw new Error('رقم هاتف الطالب غير موجود، لذلك لا يمكن تحديد تسجيلاته المرتبطة بأمان.');
+        }
+
+        const updates = {};
+        const affectedPhones = new Set(memberPhones);
+        let deletedBookings = 0;
+
+        const belongsToTarget = (record, indexedPhone = '') => {
+            if (!record || typeof record !== 'object') return false;
+            const phone = extractPureNumber(record.phone) || extractPureNumber(indexedPhone);
+            // When deleting a whole group, only delete records belonging to its enrolled students.
+            // This prevents collateral deletion if another group happens to use the same group number.
+            if (wholeGroup && !memberPhones.has(phone)) return false;
+            if (!wholeGroup && phone !== targetPhone) return false;
+            const recordGroup = extractPureNumber(record.group);
+            const courseMatches = courseKeys.has(courseNameToKey(record.course || ''));
+
+            // رقم المجموعة هو التعريف الأساسي لسجلات المجموعة.
+            if (groupNumber && recordGroup) return recordGroup === groupNumber;
+
+            // دعم السجلات القديمة التي لم يكن بها رقم مجموعة، بشرط تطابق الهاتف والكورس.
+            if (!recordGroup && courseMatches) {
+                return wholeGroup ? memberPhones.has(phone) : phone === targetPhone;
+            }
+            if (!groupNumber && courseMatches) {
+                return wholeGroup ? memberPhones.has(phone) : phone === targetPhone;
+            }
+            return false;
+        };
+
+        if (studentsSnap.exists()) {
+            studentsSnap.forEach(child => {
+                const record = child.val();
+                if (belongsToTarget(record, record && record.phone)) {
+                    updates[`new_system/students/${child.key}`] = null;
+                    deletedBookings++;
+                    const phone = extractPureNumber(record && record.phone);
+                    if (phone) affectedPhones.add(phone);
+                }
+            });
+        }
+
+        // اقرأ فهرس المواعيد حسب رقم الهاتف بدل قراءة المسار الكامل، لتوافق صلاحيات Firebase على مستوى الطالب.
+        const appointmentReads = await Promise.all(Array.from(affectedPhones).map(async phone => ({
+            phone,
+            snap: await database.ref(`new_system/student_appointments/${phone}`).get()
+        })));
+        appointmentReads.forEach(({ phone: indexedPhone, snap }) => {
+            if (!snap.exists()) return;
+            snap.forEach(appointmentNode => {
+                const record = appointmentNode.val();
+                if (belongsToTarget(record, indexedPhone)) {
+                    updates[`new_system/student_appointments/${indexedPhone}/${appointmentNode.key}`] = null;
+                    const recordPhone = extractPureNumber(record && record.phone) || indexedPhone;
+                    if (recordPhone) affectedPhones.add(recordPhone);
+                }
+            });
+        });
+
+        // حذف تقدم الطالب وتسليماته الخاصة بهذه الدبلومة فقط، وعدم المساس بكورسات أخرى.
+        const allProgress = progressSnap.exists() ? progressSnap.val() : {};
+        affectedPhones.forEach(phone => {
+            const progress = allProgress[phone];
+            if (!progress || typeof progress !== 'object') return;
+            Object.keys(progress).forEach(configKey => {
+                if (configKey === diplomaId || configKey.startsWith(`${diplomaId}_`)) {
+                    updates[`new_system/student_progress/${phone}/${configKey}`] = null;
+                }
+            });
+        });
+
+        if (wholeGroup) {
+            // حذف سجل المجموعة وطلابها وإعدادات الكورسات المرتبطة بها.
+            updates[`new_system/diplomas/${diplomaId}`] = null;
+            updates[`new_system/diploma_students/${diplomaId}`] = null;
+            updates[`new_system/settings/diploma_course_config/${diplomaId}`] = null;
+            const configs = configSnap.exists() ? configSnap.val() : {};
+            Object.keys(configs || {}).forEach(configKey => {
+                if (configKey === diplomaId || configKey.startsWith(`${diplomaId}_`)) {
+                    updates[`new_system/settings/diploma_course_config/${configKey}`] = null;
+                }
+            });
+        } else {
+            // حذف الطالب من هذه المجموعة فقط.
+            updates[`new_system/diploma_students/${diplomaId}/${studentId}`] = null;
+        }
+
+        await database.ref().update(updates);
+        return { deletedBookings, affectedStudents: affectedPhones.size };
+    }
+
     window.deleteDiploma = async function(id) {
-        if (!confirm('تأكيد حذف الدورة بكل طلابها؟')) return;
+        const dip = allDiplomas[id] || {};
+        const groupLabel = `${dip.name || 'المجموعة'}${dip.number ? ' - رقم ' + dip.number : ''}`;
+        if (!confirm(`تحذير: سيتم حذف ${groupLabel} نهائيًا، بما في ذلك كل الطلاب المسجلين بها، وحجوزاتهم، وحضورهم، وبيانات التاسكات والتسليمات الخاصة بها. لن تتأثر بيانات الطالب في مجموعات أخرى. هل تريد المتابعة؟`)) return;
         try {
-            await database.ref('new_system/diplomas/' + id).remove();
-            await database.ref('new_system/diploma_students/' + id).remove();
-            await database.ref('new_system/settings/diploma_course_config/' + id).remove();
-            loadAndRenderDiplomas();
-        } catch(e) { alert('خطأ: ' + e.message); }
+            const result = await removeDiplomaRelatedData(id, { wholeGroup: true });
+            if (currentDiplomaId === id) currentDiplomaId = null;
+            if (currentLabDipId === id) currentLabDipId = null;
+            alert(`تم حذف المجموعة وكل بياناتها المرتبطة بنجاح.\nعدد تسجيلات المواعيد المحذوفة: ${result.deletedBookings}`);
+            await loadAndRenderDiplomas();
+            await renderLabGroups();
+            if (currentLabGroupName) {
+                const stillExists = Object.values(allDiplomas).some(d => (d.name || 'بدون اسم').trim() === currentLabGroupName);
+                if (!stillExists) backToLabGroups();
+                else if (document.getElementById('view-groups').classList.contains('active')) renderLabGroupCopies();
+            }
+        } catch(e) { alert('تعذر حذف المجموعة بالكامل: ' + e.message); }
     };
 
     window.openDiplomaDetail = async function(id) {
@@ -3061,13 +3192,31 @@
     };
 
     window.deleteDiplomaStudent = async function(sid) {
-        if (!confirm('تأكيد حذف الطالب من الدورة؟')) return;
+        if (!currentDiplomaId) return;
+        if (!confirm('سيتم حذف الطالب من هذه المجموعة، مع حذف حجوزاته وبيانات التاسكات والتسليمات الخاصة بهذه المجموعة فقط. ستظل بياناته في أي مجموعة أخرى. هل تريد المتابعة؟')) return;
         try {
-            await database.ref(`new_system/diploma_students/${currentDiplomaId}/${sid}`).remove();
+            const result = await removeDiplomaRelatedData(currentDiplomaId, { wholeGroup: false, studentId: sid });
+            const membersSnap = await database.ref(`new_system/diploma_students/${currentDiplomaId}`).get();
+            allDiplomaStudents[currentDiplomaId] = membersSnap.exists() ? membersSnap.val() : {};
+            alert(`تم حذف الطالب من المجموعة ومسح بياناته المرتبطة بها.\nعدد تسجيلات المواعيد المحذوفة: ${result.deletedBookings}`);
             await renderDiplomaStudents();
-        } catch(e) { alert('خطأ: ' + e.message); }
+            if (currentLabDipId === currentDiplomaId) await renderLabDipCopyStudents();
+        } catch(e) { alert('تعذر حذف الطالب وبياناته: ' + e.message); }
     };
 
+    window.deleteLabGroupStudent = async function(sid) {
+        if (!currentLabDipId) return;
+        if (!confirm('سيتم حذف الطالب من هذه المجموعة، مع حذف حجوزاته وبيانات التاسكات والتسليمات الخاصة بهذه المجموعة فقط. ستظل بياناته في أي مجموعة أخرى. هل تريد المتابعة؟')) return;
+        try {
+            const result = await removeDiplomaRelatedData(currentLabDipId, { wholeGroup: false, studentId: sid });
+            const membersSnap = await database.ref(`new_system/diploma_students/${currentLabDipId}`).get();
+            allDiplomaStudents[currentLabDipId] = membersSnap.exists() ? membersSnap.val() : {};
+            alert(`تم حذف الطالب من المجموعة ومسح بياناته المرتبطة بها.\nعدد تسجيلات المواعيد المحذوفة: ${result.deletedBookings}`);
+            await renderLabDipCopyStudents();
+            if (currentDiplomaId === currentLabDipId) await renderDiplomaStudents();
+            renderLabGroupCopies();
+        } catch(e) { alert('تعذر حذف الطالب وبياناته: ' + e.message); }
+    };
     /* ============ إدارة المجموعات (إدارة المعمل) ============ */
 
     let currentLabGroupName = null;
@@ -3192,6 +3341,7 @@
             const safeNumber = escapeForAttr(dip.number || '');
             container.innerHTML += `
                 <div class="diploma-card ${isExpired ? 'expired' : ''}" onclick="openLabDipCopyDetail('${id}')" data-name="${safeNameOriginal.toLowerCase()}" data-number="${safeNumber}">
+                    <button class="dip-delete" onclick="event.stopPropagation(); deleteDiploma('${id}')" title="حذف المجموعة بكل بياناتها">×</button>
                     <button class="dip-edit" onclick="event.stopPropagation(); openLabDipEditDates('${id}')" title="تعديل الفترة">⋮</button>
                     <div class="dip-num">${dip.number}</div>
                     <div class="dip-name">${safeDisplayName}</div>
@@ -3272,13 +3422,14 @@
                         <th>الرقم</th>
                         <th>الكلية</th>
                         ${courseList.map(c => `<th>${c.name}</th>`).join('')}
+                        <th class="no-export">إجراء</th>
                     </tr>
                 </thead>
                 <tbody>
         `;
 
         if (keys.length === 0) {
-            html += `<tr><td colspan="${4 + courseList.length}" style="padding: 20px; color: #888; text-align: center;">لا يوجد طلاب مسجلين في هذه الدورة</td></tr>`;
+            html += `<tr><td colspan="${5 + courseList.length}" style="padding: 20px; color: #888; text-align: center;">لا يوجد طلاب مسجلين في هذه الدورة</td></tr>`;
         } else {
             keys.forEach((sid, index) => {
                 const st = students[sid];
@@ -3306,7 +3457,9 @@
                     html += `<td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; color: ${color};">${completed} / ${totalTasks}</td>`;
                 });
 
-                html += `</tr>`;
+                html += `<td class="no-export" style="padding: 6px; border: 1px solid #ddd; text-align: center;">
+                    <button class="delete-btn" style="margin:0; padding:5px 8px; font-size:12px;" onclick="deleteLabGroupStudent('${escapeForJs(sid)}')">حذف الطالب</button>
+                </td></tr>`;
             });
         }
 
@@ -3321,6 +3474,7 @@
         const table = document.querySelector('#lab-group-copy-students-container table');
         if (!table) return;
         const clone = table.cloneNode(true);
+        clone.querySelectorAll('.no-export').forEach(el => el.remove());
         clone.setAttribute('border', '1');
         clone.style.borderCollapse = 'collapse';
         clone.style.textAlign = 'center';
