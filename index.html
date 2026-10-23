@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=14') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=14');
+        if (window.location.href.indexOf('?v=15') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=15');
         }
     </script>
     <title>test</title>
@@ -1135,7 +1135,6 @@
     let isLateBookingBlocked = false;
     let lateBookingOffsetHours = 0;
 
-    /* ============ ديناميكي: إعدادات الكورسات (بدل LMS_COURSES) ============ */
     let diplomaCourseConfig = {}; // { [diplomaId_courseKey]: { limit, exam, upcomingLimit, pdfTasks } }
 
     function makeCourseConfigKey(diplomaId, courseName) {
@@ -1745,10 +1744,10 @@
             currentStudentDiplomaData = matches.filter(m => {
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
-                if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
+                const labStart = dip.start_date;
                 const labEnd = getEndDateLab(dip);
-                if (!labEnd) return true;
-                return labEnd >= todayStr;
+                if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
+                return false;
             }).map(m => ({
                 diplomaId: m.diplomaId,
                 studentId: m.studentId,
@@ -1817,27 +1816,23 @@
                     });
                 });
 
-                let validDiplomaMatches = diplomaMatches.filter(m => {
-                    const dip = diplomasData[m.diplomaId];
-                    if (!dip) return false;
-                    return extractPureNumber(dip.number) === group;
-                });
-
+                // فلترة الدورات الشغالة حالياً فقط
                 const todayStr = getLocalDateString();
-                let activeDiplomaMatches = validDiplomaMatches.filter(m => {
+                let activeDiplomaMatches = diplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
                     if (!dip) return false;
+                    const labStart = dip.start_date;
                     const labEnd = getEndDateLab(dip);
-                    if (!labEnd) return true;
-                    return labEnd >= todayStr;
+                    if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
+                    return false;
                 });
 
-                if (validDiplomaMatches.length > 0 && activeDiplomaMatches.length === 0) {
-                    showErrorModal(SYSTEM_MESSAGES.expired_diploma);
+                if (diplomaMatches.length > 0 && activeDiplomaMatches.length === 0) {
+                    showErrorModal("عفواً، أنت غير مسجل في أي دورة شغالة حالياً أو أن دورتك انتهت. يرجى مراجعة الإدارة.");
                     return;
                 }
 
-                validDiplomaMatches = activeDiplomaMatches;
+                let validDiplomaMatches = activeDiplomaMatches;
 
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
@@ -1861,18 +1856,21 @@
                 currentStudentPhone = phone;
                 currentStudentGroup = group;
                 currentStudentProgress = progSnap.exists() ? progSnap.val() : {};
-                currentStudentDiplomaData = validDiplomaMatches.map(m => ({
-                    diplomaId: m.diplomaId,
-                    studentId: m.studentId,
-                    name: m.name,
-                    phone: m.phone,
-                    paid: m.paid || 0,
-                    attendance: m.attendance || {},
-                    dipName: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].name) || 'دورة',
-                    dipNumber: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].number) || '',
-                    courses: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].courses) || [],
-                    price: (diplomasData[m.diplomaId] && diplomasData[m.diplomaId].price) || 0
-                }));
+                currentStudentDiplomaData = validDiplomaMatches.map(m => {
+                    const dip = diplomasData[m.diplomaId];
+                    return {
+                        diplomaId: m.diplomaId,
+                        studentId: m.studentId,
+                        name: m.name,
+                        phone: m.phone,
+                        paid: m.paid || 0,
+                        attendance: m.attendance || {},
+                        dipName: (dip && dip.name) || 'دورة',
+                        dipNumber: (dip && dip.number) || '',
+                        courses: (dip && dip.courses) || [],
+                        price: (dip && dip.price) || 0
+                    };
+                });
 
                 matchingRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
                 currentStudentRecords = matchingRecords;
@@ -2017,16 +2015,50 @@
         document.getElementById('book-date').value = '';
         document.getElementById('book-time').innerHTML = '<option value="">اختر التاريخ أولاً</option>';
 
-        const enrolledCourses = getStudentEnrolledCourses(currentStudentRecords);
         const select = document.getElementById('book-course');
         select.innerHTML = '';
-        if (enrolledCourses.length === 0) {
-            select.innerHTML = '<option value="">لا توجد كورسات</option>';
+
+        let allCourses = [];
+        const seen = new Set();
+        const todayStr = getLocalDateString();
+
+        (currentStudentDiplomaData || []).forEach(dipData => {
+            const dip = allDiplomas[dipData.diplomaId];
+            if (dip) {
+                const labEnd = getEndDateLab(dip);
+                const labStart = dip.start_date;
+                if (labStart && labEnd) {
+                    if (todayStr < labStart || todayStr > labEnd) return;
+                } else if (labEnd && todayStr > labEnd) {
+                    return;
+                }
+            }
+
+            const dipName = dipData.dipName || 'دورة';
+            const dipNum = dipData.dipNumber || '';
+            (dipData.courses || []).forEach(c => {
+                const key = `${dipData.diplomaId}_${courseNameToKey(c.name)}`;
+                if (!seen.has(key)) {
+                    seen.add(key);
+                    allCourses.push({
+                        courseName: c.name,
+                        diplomaId: dipData.diplomaId,
+                        diplomaName: dipName,
+                        diplomaNumber: dipNum
+                    });
+                }
+            });
+        });
+
+        if (allCourses.length === 0) {
+            select.innerHTML = '<option value="">لا توجد كورسات متاحة في دوراتك الشغالة حالياً</option>';
         } else {
-            enrolledCourses.forEach(enr => {
+            allCourses.forEach(c => {
                 const o = document.createElement('option');
-                o.value = enr.courseName;
-                o.text = `${enr.courseName} (${enr.diplomaName})`;
+                o.value = c.courseName;
+                o.text = c.diplomaNumber
+                    ? `${c.courseName} (${c.diplomaName} - #${c.diplomaNumber})`
+                    : `${c.courseName} (${c.diplomaName})`;
                 select.appendChild(o);
             });
         }
@@ -2065,14 +2097,11 @@
         const time = document.getElementById('book-time').value;
         if (!date || !time || !course) { showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.'); return; }
 
-        // نحدد الدورة من الكورس (بناءً على group الطالب)
         let diplomaId = null;
-        Object.keys(allDiplomas).forEach(dipId => {
-            const dip = allDiplomas[dipId];
-            if (!dip) return;
-            if (extractPureNumber(dip.number) !== currentStudentGroup) return;
-            const dipCourses = dip.courses || [];
-            if (dipCourses.some(c => c.name === course)) diplomaId = dipId;
+        (currentStudentDiplomaData || []).forEach(dipData => {
+            if (!diplomaId && (dipData.courses || []).some(c => c.name === course)) {
+                diplomaId = dipData.diplomaId;
+            }
         });
 
         if (!diplomaId) { showErrorModal('لم يتم العثور على الدورة المطابقة.'); return; }
@@ -2937,15 +2966,13 @@
     }
 
     /* ============ DIPLOMA CERTIFICATES VIEW ============ */
-    // ✅ الشهادات بناءً على الدورة — الطالب ياخد شهادة الدورة لما يخلص كل تاسكات كل كورساتها
 
     let currentCertGroup = null;
     let currentCertSubView = null;
-    let certDataCache = { diplomas: {}, students: {} };
+    let certDataCache = { diplomas: {}, students: {}, progress: {}, allStudentRecords: [] };
 
     function isStudentEligibleForDiplomaCert(dipId, dip, studentProgressData, allStudentRecords, studentPhone) {
         if (!dip.courses || dip.courses.length === 0) return false;
-        // نجمع completedTasksSet للطالب في هذه الدورة
         const cTasks = {};
         allStudentRecords.filter(s => extractPureNumber(s.phone) === studentPhone && !s.canceled && s.attended && s.tasks).forEach(r => {
             const courseName = r.course;
@@ -3001,7 +3028,7 @@
     }
 
     function buildCertGroups() {
-        const groups = {}; // { diplomaName: { due: [], graduates: [] } }
+        const groups = {};
         const diplomas = certDataCache.diplomas || {};
         const allDipStudents = certDataCache.students || {};
         const progressMap = certDataCache.progress || {};
@@ -4203,7 +4230,6 @@
         document.getElementById('report-absence-cycle').innerText = cycleText;
         let tbody = document.getElementById('report-tbody'); tbody.innerHTML = '';
 
-        // نجمع tasks من الحضور
         const cTasks = {};
         validRecords.forEach(rec => {
             if (rec.attended && rec.tasks) {
@@ -4382,7 +4408,6 @@
             return;
         }
 
-        // نجيب courseList من أول دورة بنفس الاسم (لأن lab_course_tasks مفتاحها اسم الدورة)
         let coursesMap = {};
         Object.values(allDiplomas).forEach(d => {
             if ((d.name || '').trim() === diplomaName && d.courses) {
@@ -4396,7 +4421,6 @@
             return;
         }
 
-        // نبحث عن diplomaId الأول بنفس الاسم (عشان نعرض الإعدادات)
         let firstDipId = null;
         Object.keys(allDiplomas).forEach(dipId => {
             if (!firstDipId && (allDiplomas[dipId].name || '').trim() === diplomaName) firstDipId = dipId;
@@ -4441,12 +4465,11 @@
         }
     };
 
-    /* ============ Course Config Modal (لكل كورس في كل دورة) ============ */
+    /* ============ Course Config Modal ============ */
     let editingConfigDiplomaId = null;
     let editingConfigCourseName = null;
 
     window.openCourseConfigModal = function(courseName) {
-        // من صفحة تفاصيل الدورة
         if (!currentDiplomaId) return;
         editingConfigDiplomaId = currentDiplomaId;
         editingConfigCourseName = courseName;
@@ -4454,7 +4477,6 @@
     };
 
     window.openCourseConfigModalByName = function(courseName) {
-        // من صفحة إعدادات النظام - نبحث عن أول diplomaId بنفس اسم الدورة المختارة
         const select = document.getElementById('lab-tasks-diploma-select');
         const diplomaName = select.value;
         if (!diplomaName) { alert('اختر دورة أولاً'); return; }
@@ -4528,7 +4550,6 @@
         currentEditingPdfDiplomaId = diplomaId;
         currentEditingPdfCourseName = courseName;
 
-        // نجيب أحدث lab_course_tasks
         try {
             const snap = await database.ref('lab_course_tasks').get();
             labCourseTasks = snap.exists() ? snap.val() : {};
