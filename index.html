@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=11') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=11');
+        if (window.location.href.indexOf('?v=12') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=12');
         }
     </script>
     <title>test</title>
@@ -1681,7 +1681,6 @@
                 });
             });
 
-            // ✅ نفلتر على الدورات النشطة فقط (اللي فترتها ما انتهتش ورقمها يطابق مجموعة الطالب)
             currentStudentDiplomaData = matches.filter(m => {
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
@@ -1763,7 +1762,6 @@
                     return extractPureNumber(dip.number) === group;
                 });
 
-                // ✅ فلترة الدورات النشطة فقط
                 const todayStr = getLocalDateString();
                 let activeDiplomaMatches = validDiplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
@@ -4216,33 +4214,284 @@
         }
     };
 
-    if (typeof renderSystemSettingsUI !== 'function') {
-        window.renderSystemSettingsUI = function() {
-            const btn = document.getElementById('btn-block-late');
-            if (btn) {
-                btn.innerText = isLateBookingBlocked ? 'مفعل' : 'موقوف';
-                btn.className = 'toggle-btn ' + (isLateBookingBlocked ? 'btn-enable' : 'btn-inactive');
+    /* ============ PDF TASKS CONFIG (للأدمن) ============ */
+    let currentEditingPdfCourse = null;
+
+    window.openPdfConfigModal = function(courseKey) {
+        const course = LMS_COURSES[courseKey];
+        if (!course) return;
+        currentEditingPdfCourse = courseKey;
+
+        document.getElementById('pdf-modal-title').innerText = `محتوى كورس: ${course.title}`;
+        document.getElementById('pdf-file-input').value = '';
+
+        const container = document.getElementById('pdf-tasks-list');
+        container.innerHTML = '';
+        const pdfTasks = course.pdfTasks || {};
+
+        for (let i = 1; i <= course.tasks; i++) {
+            const tKey = `task_${i}`;
+            const existing = pdfTasks[tKey] || {};
+            const pageVal = existing.page ? String(existing.page).replace(/"/g, '&quot;') : '';
+            const commentVal = existing.comment ? String(existing.comment).replace(/"/g, '&quot;') : '';
+            const allowSubChecked = existing.allowSubmission ? 'checked' : '';
+
+            let statusBadge = '<span style="color:#999; font-size:11px;">بدون مرفق</span>';
+            if (existing.images && existing.images.length > 0) {
+                statusBadge = '<span style="color:#28a745; font-size:11px; font-weight:bold;">✔ محفوظ كصورة</span>';
+            } else if (existing.page && /https?:\/\//i.test(existing.page)) {
+                statusBadge = '<span style="color:#0066cc; font-size:11px; font-weight:bold;">🔗 رابط خارجي</span>';
             }
-            const lateOffsetContainer = document.getElementById('late-offset-container');
-            if (lateOffsetContainer) lateOffsetContainer.style.display = isLateBookingBlocked ? 'block' : 'none';
-            const lateOffsetInput = document.getElementById('late-booking-offset');
-            if (lateOffsetInput) lateOffsetInput.value = lateBookingOffsetHours;
-        };
+
+            container.innerHTML += `
+                <div style="border-bottom: 1px solid #eee; padding: 10px 0; display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <strong style="color:#3b1e5a; font-size:14px;">Task ${i}</strong>
+                        <div style="display:flex; align-items:center; gap:12px;">
+                            <label style="font-size:12px; color:#3b1e5a; display:flex; align-items:center; gap:4px; margin:0; cursor:pointer;">
+                                <input type="checkbox" id="pdf-sub-${i}" ${allowSubChecked} style="width:15px; height:15px; margin:0; accent-color:#3b1e5a;"> تفعيل تسليم رابط للطالب
+                            </label>
+                            ${statusBadge}
+                        </div>
+                    </div>
+                    <div style="display:flex; gap:8px;">
+                        <input type="text" id="pdf-page-${i}" value="${pageVal}" placeholder="صفحة (5 أو 5-6) أو رابط مباشر https://..." style="margin:0; width:45%; border:1px solid #ccc; font-size:12px; padding:6px;">
+                        <input type="text" id="pdf-comment-${i}" value="${commentVal}" placeholder="ملاحظة أو كومنت (استخدم / لسطر جديد)..." style="margin:0; width:55%; border:1px solid #ccc; font-size:12px; padding:6px;">
+                    </div>
+                </div>
+            `;
+        }
+        document.getElementById('pdf-config-modal').style.display = 'flex';
+    };
+
+    window.closePdfConfigModal = function() {
+        currentEditingPdfCourse = null;
+        document.getElementById('pdf-config-modal').style.display = 'none';
+    };
+
+    function parsePageNumbers(str, maxPages) {
+        if (!str || /https?:\/\//i.test(str)) return [];
+        const pages = [];
+        const parts = str.split(',');
+        parts.forEach(part => {
+            if (part.includes('-')) {
+                const [start, end] = part.split('-').map(x => parseInt(x.trim()));
+                if (!isNaN(start) && !isNaN(end) && start <= end) {
+                    for (let p = start; p <= end; p++) {
+                        if (p >= 1 && p <= maxPages) pages.push(p);
+                    }
+                }
+            } else {
+                const p = parseInt(part.trim());
+                if (!isNaN(p) && p >= 1 && p <= maxPages) pages.push(p);
+            }
+        });
+        return [...new Set(pages)];
     }
-    if (typeof saveSystemSettings !== 'function') {
-        window.saveSystemSettings = async function() {
-            try {
-                const lateOffsetVal = parseFloat(document.getElementById('late-booking-offset').value) || 0;
-                await database.ref('settings/lateBookingOffset').set(lateOffsetVal);
-                alert('تم حفظ إعدادات النظام ✅');
-            } catch(e) { alert('خطأ: ' + e.message); }
-        };
+
+    async function renderPdfPageToBase64(pdfDoc, pageNum) {
+        const page = await pdfDoc.getPage(pageNum);
+        const viewport = page.getViewport({ scale: 1.0 });
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+        await page.render({ canvasContext: ctx, viewport }).promise;
+        return canvas.toDataURL('image/jpeg', 0.6);
     }
-    if (typeof toggleBlockLateBooking !== 'function') {
-        window.toggleBlockLateBooking = function() {
-            database.ref('settings/blockLateBooking').set(!isLateBookingBlocked).catch(e => alert(e.message));
-        };
-    }
+
+    window.savePdfConfigData = async function() {
+        if (!currentEditingPdfCourse) return;
+        const courseKey = currentEditingPdfCourse;
+        const course = LMS_COURSES[courseKey];
+        const btn = document.getElementById('save-pdf-config-btn');
+        const fileInput = document.getElementById('pdf-file-input');
+        const file = fileInput.files[0];
+
+        btn.disabled = true;
+        btn.innerText = 'جاري المعالجة والحفظ...';
+
+        try {
+            let pdfDoc = null;
+            if (file) {
+                if (!window.pdfjsLib) {
+                    alert('مكتبة معالجة الـ PDF لم تحمل بعد، تأكد من اتصالك بالإنترنت.');
+                    btn.disabled = false; btn.innerText = 'حفظ ومعالجة الملف'; return;
+                }
+                const arrayBuffer = await file.arrayBuffer();
+                pdfDoc = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+            }
+
+            const existingPdfTasks = course.pdfTasks || {};
+            const updatedPdfTasks = {};
+
+            for (let i = 1; i <= course.tasks; i++) {
+                const tKey = `task_${i}`;
+                const pageStr = (document.getElementById(`pdf-page-${i}`).value || '').trim();
+                const commentStr = (document.getElementById(`pdf-comment-${i}`).value || '').trim();
+                const allowSub = document.getElementById(`pdf-sub-${i}`).checked;
+                const oldData = existingPdfTasks[tKey] || {};
+
+                let imagesArr = pdfDoc ? [] : (oldData.images || []);
+                const isDirectUrl = /https?:\/\//i.test(pageStr);
+
+                if (isDirectUrl || !pageStr) {
+                    imagesArr = [];
+                } else if (pdfDoc && pageStr) {
+                    const targetPages = parsePageNumbers(pageStr, pdfDoc.numPages);
+                    if (targetPages.length > 0) {
+                        imagesArr = [];
+                        for (const pNum of targetPages) {
+                            const base64Img = await renderPdfPageToBase64(pdfDoc, pNum);
+                            imagesArr.push(base64Img);
+                        }
+                    }
+                }
+
+                if (pageStr || commentStr || imagesArr.length > 0 || allowSub) {
+                    updatedPdfTasks[tKey] = {
+                        page: pageStr,
+                        comment: commentStr,
+                        images: imagesArr,
+                        allowSubmission: allowSub
+                    };
+                }
+            }
+
+            await database.ref(`settings/courses/${courseKey}/pdfTasks`).set(updatedPdfTasks);
+            LMS_COURSES[courseKey].pdfTasks = updatedPdfTasks;
+            alert('تم حفظ ومعالجة بيانات الـ Tasks بنجاح ✅');
+            closePdfConfigModal();
+        } catch (err) {
+            alert('حدث خطأ أثناء المعالجة: ' + err.message);
+        } finally {
+            btn.disabled = false;
+            btn.innerText = 'حفظ ومعالجة الملف';
+        }
+    };
+
+    /* ============ SYSTEM SETTINGS UI ============ */
+    window.renderSystemSettingsUI = function() {
+        const btn = document.getElementById('btn-block-late');
+        if (btn) {
+            btn.innerText = isLateBookingBlocked ? 'مفعل' : 'موقوف';
+            btn.className = 'toggle-btn ' + (isLateBookingBlocked ? 'btn-enable' : 'btn-inactive');
+        }
+        const lateOffsetContainer = document.getElementById('late-offset-container');
+        if (lateOffsetContainer) lateOffsetContainer.style.display = isLateBookingBlocked ? 'block' : 'none';
+        const lateOffsetInput = document.getElementById('late-booking-offset');
+        if (lateOffsetInput) lateOffsetInput.value = lateBookingOffsetHours;
+
+        let coursesContainer = document.getElementById('courses-settings-container');
+        if (coursesContainer) {
+            coursesContainer.innerHTML = '';
+            Object.values(LMS_COURSES).forEach(c => {
+                let isExam = c.exam ? "checked" : "";
+                let upLim = c.upcomingLimit || 0;
+                coursesContainer.innerHTML += `
+                    <div class="settings-card">
+                        <h4>إعدادات: ${c.title}</h4>
+                        <div style="display:flex; gap:10px; flex-wrap:wrap; align-items:center;">
+                            <div style="flex:1; min-width:110px;">
+                                <label style="font-size:13px;">السعة القصوى للفترة:</label>
+                                <input type="number" id="limit-${c.key}" value="${c.limit}" min="1">
+                            </div>
+                            <div style="flex:1; min-width:110px;">
+                                <label style="font-size:13px;">عدد التاسكات:</label>
+                                <input type="number" id="tasks-${c.key}" value="${c.tasks}" min="0">
+                            </div>
+                            <div style="flex:1; min-width:110px;">
+                                <label style="font-size:13px;">عدد tasks القادمة:</label>
+                                <input type="number" id="upcoming-${c.key}" value="${upLim}" min="0">
+                            </div>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; border-top:1px dashed rgba(255,255,255,0.2); padding-top:10px;">
+                            <label style="font-size:13px; display:flex; align-items:center; gap:5px; margin:0; color:white;">
+                                <input type="checkbox" id="exam-${c.key}" ${isExam} style="width:16px; margin:0;"> تفعيل الاختبار النهائي
+                            </label>
+                            <button type="button" class="admin-btn" style="padding:8px 15px; font-size:13px;" onclick="openPdfConfigModal('${c.key}')">Tasks PDF</button>
+                        </div>
+                    </div>
+                `;
+            });
+        }
+
+        let supportContainer = document.getElementById('support-settings-container');
+        if (supportContainer) {
+            supportContainer.innerHTML = `
+                <div class="settings-card" style="margin-top: 20px;">
+                    <h4>إعدادات التواصل والدعم</h4>
+                    <div>
+                        <label style="font-size:13px; color:#fcc01a;">رقم واتساب المعمل:</label>
+                        <input type="tel" id="setting-lab-phone" value="${globalLabPhone || ''}" placeholder="مثال: 01012345678">
+                    </div>
+                </div>
+            `;
+        }
+
+        let msgsContainer = document.getElementById('messages-settings-container');
+        if (msgsContainer) {
+            msgsContainer.innerHTML = `
+                <div class="settings-card" style="margin-top: 20px;">
+                    <h4>تخصيص رسائل النظام</h4>
+                    <div style="display:flex; flex-direction:column; gap:10px;">
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة واتساب الافتراضية:</label><input type="text" id="msg-wa-template" value="${SYSTEM_MESSAGES.wa_template || ''}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة نجاح التسجيل:</label><input type="text" id="msg-success" value="${SYSTEM_MESSAGES.success}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة اكتمال العدد:</label><input type="text" id="msg-full" value="${SYSTEM_MESSAGES.full}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة الإغلاق الكلي لليوم:</label><input type="text" id="msg-closed-day" value="${SYSTEM_MESSAGES.closed_day}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة الإغلاق لانتهاء الوقت:</label><input type="text" id="msg-late" value="${SYSTEM_MESSAGES.late_block}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة الحساب المقيد:</label><input type="text" id="msg-blocked" value="${SYSTEM_MESSAGES.blocked}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة تكرار المواعيد:</label><input type="text" id="msg-duplicate" value="${SYSTEM_MESSAGES.duplicate}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة عدم وجود بيانات:</label><input type="text" id="msg-not-found" value="${SYSTEM_MESSAGES.not_found}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة خطأ رقم الهاتف:</label><input type="text" id="msg-phone-err" value="${SYSTEM_MESSAGES.phone_err}"></div>
+                        <div><label style="font-size:13px; color:#fcc01a;">رسالة اختلاف رقم المجموعة:</label><input type="text" id="msg-group-mismatch" value="${SYSTEM_MESSAGES.group_mismatch}"></div>
+                    </div>
+                </div>
+            `;
+        }
+    };
+
+    window.saveSystemSettings = async function() {
+        try {
+            const lateOffsetVal = parseFloat(document.getElementById('late-booking-offset').value) || 0;
+            await database.ref('settings/lateBookingOffset').set(lateOffsetVal);
+
+            const updates = {};
+            Object.values(LMS_COURSES).forEach(c => {
+                const limEl = document.getElementById(`limit-${c.key}`);
+                const tasksEl = document.getElementById(`tasks-${c.key}`);
+                const upEl = document.getElementById(`upcoming-${c.key}`);
+                const examEl = document.getElementById(`exam-${c.key}`);
+                if (limEl) updates[`${c.key}/limit`] = parseInt(limEl.value) || 1;
+                if (tasksEl) updates[`${c.key}/tasks`] = parseInt(tasksEl.value) || 0;
+                if (upEl) updates[`${c.key}/upcomingLimit`] = parseInt(upEl.value) || 0;
+                if (examEl) updates[`${c.key}/exam`] = examEl.checked;
+            });
+            if (Object.keys(updates).length > 0) {
+                await database.ref('settings/courses').update(updates);
+            }
+
+            const labPhoneEl = document.getElementById('setting-lab-phone');
+            if (labPhoneEl) await database.ref('settings/lab_phone').set(labPhoneEl.value.trim());
+
+            const msgFields = ['wa_template', 'success', 'full', 'closed_day', 'late_block', 'blocked', 'duplicate', 'not_found', 'phone_err', 'group_mismatch'];
+            const msgIds = ['msg-wa-template', 'msg-success', 'msg-full', 'msg-closed-day', 'msg-late', 'msg-blocked', 'msg-duplicate', 'msg-not-found', 'msg-phone-err', 'msg-group-mismatch'];
+            const msgsUpdate = {};
+            msgIds.forEach((id, idx) => {
+                const el = document.getElementById(id);
+                if (el) msgsUpdate[msgFields[idx]] = el.value;
+            });
+            if (Object.keys(msgsUpdate).length > 0) {
+                await database.ref('settings/messages').update(msgsUpdate);
+            }
+
+            alert('تم حفظ كافة إعدادات النظام بنجاح ✅');
+        } catch(e) { alert('خطأ: ' + e.message); }
+    };
+
+    window.toggleBlockLateBooking = function() {
+        database.ref('settings/blockLateBooking').set(!isLateBookingBlocked).catch(e => alert(e.message));
+    };
 </script>
 </body>
 </html>
