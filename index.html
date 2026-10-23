@@ -2126,13 +2126,40 @@
                 const totalTasks = getDynamicTasksCount(diplomaId, courseName);
                 const cfg = getCourseConfig(diplomaId, courseName);
                 const upcomingLimit = cfg.upcomingLimit;
-                let shownCount = 0;
 
+                // ✅ 1) بناء مجموعة التاسكات المكتملة من المصدرين (student_progress + students/{id}/tasks)
+                const completedSet = new Set();
+
+                // المصدر الأول: التسجيل اليدوي في student_progress
                 for (let i = 1; i <= totalTasks; i++) {
-                    const tKey = `task_${i}`;
-                    const isDoneManual = courseProgress[tKey];
-                    if (isDoneManual) continue;
+                    if (courseProgress[`task_${i}`]) completedSet.add(i);
+                }
+
+                // المصدر الثاني: تسجيل الحضور من students/{id}/tasks (مودال 📝)
+                (currentStudentRecords || []).forEach(rec => {
+                    if (rec.attended !== true || !rec.tasks || rec.canceled) return;
+                    if (courseNameToKey(rec.course) !== courseKey) return;
+                    const recGroup = extractPureNumber(rec.group);
+                    if (recGroup && currentStudentGroup && recGroup !== currentStudentGroup) return;
+                    String(rec.tasks).split('|').forEach(t => {
+                        t = t.trim();
+                        if (t.startsWith('Task ')) {
+                            const num = parseInt(t.replace('Task ', '').trim());
+                            if (!isNaN(num) && num >= 1 && num <= totalTasks) completedSet.add(num);
+                        }
+                    });
+                });
+
+                // ✅ 2) نلاقي آخر تاسك اتعمل
+                let lastCompletedIndex = 0;
+                completedSet.forEach(i => { if (i > lastCompletedIndex) lastCompletedIndex = i; });
+
+                // ✅ 3) نبدأ العرض من اللي بعد آخر تاسك اتعمل (Task 1 → آخر تاسك)
+                let shownCount = 0;
+                for (let i = lastCompletedIndex + 1; i <= totalTasks; i++) {
                     if (upcomingLimit > 0 && shownCount >= upcomingLimit) break;
+
+                    const tKey = `task_${i}`;
                     const sub = courseProgress.submissions && courseProgress.submissions[tKey];
                     const bellHtml = (sub && sub.comment) ? `<span title="ملاحظة: ${escapeForAttr(sub.comment)}" style="cursor:help; margin-right: 5px;">🔔</span>` : '';
                     tasksHtml += `<div class="task-mini">
