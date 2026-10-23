@@ -1685,67 +1685,111 @@
         clearTimeout(idleConnectionTimer);
         database.goOnline();
 
-        const studentsRef = database.ref('students');
-        const studentsCallback = studentsRef.on('value', snap => {
-            if (!currentStudentPhone) return;
-            let allSt = [];
-            if (snap.exists()) snap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
+        // مهم: لا نعيد تعيين currentStudentRecords من مصدر واحد.
+        // students و student_appointments مصدران لنفس المواعيد،
+        // لذلك ندمجهما معًا حتى لا يختفي موعد قديم عند إضافة موعد جديد.
+        let liveStudentsRecords = [];
+        let indexedAppointmentRecords = [];
+        let progressDataLoaded = false;
+        let diplomaDataLoaded = false;
 
-            // تحميل مواعيد الطالب من Firebase بعد كل دخول.
-            // نعتمد على الهاتف + رقم الدورة، ومع السجلات القديمة التي لا تحتوي
-            // على group صحيح نتحقق من أن الكورس تابع للدورة الحالية.
+        const normalizeAppointment = (id, data) => ({
+            id: id,
+            ...data,
+            phone: extractPureNumber(data.phone || currentStudentPhone)
+        });
+
+        const getSelectedCourseKeys = () => {
             const selectedDiplomas = (currentStudentDiplomaData || []).filter(d =>
                 extractPureNumber(d.dipNumber) === currentStudentGroup
             );
-            const selectedCourseKeys = new Set();
-            selectedDiplomas.forEach(d => (d.courses || []).forEach(c =>
-                selectedCourseKeys.add(courseNameToKey(c.name))
-            ));
+            const keys = new Set();
+            selectedDiplomas.forEach(d => (d.courses || []).forEach(c => {
+                keys.add(courseNameToKey(c.name));
+            }));
+            return keys;
+        };
 
-            let serverRecords = allSt.filter(s => {
-                if (extractPureNumber(s.phone) !== currentStudentPhone) return false;
-                if (s.canceled || !s.date || s.date === "بدون موعد") return false;
-                const sameGroup = extractPureNumber(s.group) === currentStudentGroup;
-                const legacySameCourse = selectedCourseKeys.has(courseNameToKey(s.course || ''));
-                return sameGroup || legacySameCourse;
+        const isValidStudentAppointment = (record) => {
+            if (!record) return false;
+            if (extractPureNumber(record.phone) !== currentStudentPhone) return false;
+            if (record.canceled === true) return false;
+            if (!record.date || record.date === 'بدون موعد') return false;
+
+            const sameGroup = extractPureNumber(record.group) === currentStudentGroup;
+            const selectedCourseKeys = getSelectedCourseKeys();
+            const sameCourse = selectedCourseKeys.has(courseNameToKey(record.course || ''));
+
+            return sameGroup || sameCourse;
+        };
+
+        const refreshStudentRecords = () => {
+            if (!currentStudentPhone) return;
+
+            const merged = new Map();
+
+            // أولاً: المواعيد الموجودة في students.
+            liveStudentsRecords.forEach(record => {
+                if (!record || !record.id) return;
+                if (!isValidStudentAppointment(record)) return;
+                merged.set(record.id, { ...record });
             });
 
-            let serverIds = new Set(serverRecords.map(r => r.id));
-            currentStudentRecords.forEach(r => {
-                if (locallyAddedIds.has(r.id) && !serverIds.has(r.id)) {
-                    serverRecords.push(r);
-                }
+            // ثانيًا: index الخاص بالطالب.
+            // لو الموعد موجود هنا وليس في students لا نحذفه من الواجهة.
+            indexedAppointmentRecords.forEach(record => {
+                if (!record || !record.id) return;
+                if (!isValidStudentAppointment(record)) return;
+
+                const old = merged.get(record.id);
+                merged.set(record.id, old ? { ...old, ...record } : { ...record });
             });
 
-            locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
+            // نحتفظ مؤقتًا بأي موعد أُضيف للتو إلى أن يصل Firebase listener.
+            currentStudentRecords.forEach(record => {
+                if (!record || !record.id || !locallyAddedIds.has(record.id)) return;
+                if (!isValidStudentAppointment(record)) return;
+                if (!merged.has(record.id)) merged.set(record.id, { ...record });
+            });
 
-            currentStudentRecords = serverRecords;
+            currentStudentRecords = Array.from(merged.values());
             currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+            locallyAddedIds.forEach(id => {
+                if (merged.has(id)) locallyAddedIds.delete(id);
+            });
 
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
+        };
+
+        const studentsRef = database.ref('students');
+        const studentsCallback = studentsRef.on('value', snap => {
+            if (!currentStudentPhone) return;
+
+            const allSt = [];
+            if (snap.exists()) {
+                snap.forEach(c => allSt.push(normalizeAppointment(c.key, c.val() || {})));
+            }
+
+            liveStudentsRecords = allSt;
+            refreshStudentRecords();
         });
         studentRealtimeRefs.push({ off: () => studentsRef.off('value', studentsCallback) });
 
-        // Listener مخصص لمواعيد الطالب حتى تظل ظاهرة بعد الخروج والدخول.
         const appointmentRef = database.ref('student_appointments/' + currentStudentPhone);
         const appointmentCallback = appointmentRef.on('value', snap => {
-            if (!currentStudentPhone || !snap.exists()) return;
-            const indexed = [];
-            snap.forEach(c => {
-                const a = { id: c.key, ...c.val() };
-                if (a.canceled || !a.date || a.date === "بدون موعد") return;
-                const sameGroup = extractPureNumber(a.group) === currentStudentGroup;
-                if (sameGroup) indexed.push(a);
-            });
-            indexed.forEach(a => {
-                const idx = currentStudentRecords.findIndex(r => r.id === a.id);
-                if (idx === -1) currentStudentRecords.push(a);
-                else currentStudentRecords[idx] = { ...currentStudentRecords[idx], ...a };
-            });
-            currentStudentRecords.sort((a,b) => new Date(a.date) - new Date(b.date));
-            if (document.getElementById('student-dashboard').style.display !== 'none') renderStudentDashboard();
+            if (!currentStudentPhone) return;
+
+            indexedAppointmentRecords = [];
+            if (snap.exists()) {
+                snap.forEach(c => {
+                    indexedAppointmentRecords.push(normalizeAppointment(c.key, c.val() || {}));
+                });
+            }
+
+            refreshStudentRecords();
         });
         studentRealtimeRefs.push({ off: () => appointmentRef.off('value', appointmentCallback) });
 
@@ -1754,6 +1798,8 @@
             if (!currentStudentPhone) return;
             currentStudentProgress = snap.exists() ? snap.val() : {};
             currentStudentManageProgress = currentStudentProgress;
+            progressDataLoaded = true;
+
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
@@ -1763,13 +1809,15 @@
         const dipStudentsRef = database.ref('diploma_students');
         const dipStudentsCallback = dipStudentsRef.on('value', snap => {
             if (!currentStudentPhone) return;
+
             const data = snap.exists() ? snap.val() : {};
             const todayStr = getLocalDateString();
             let matches = [];
+
             Object.keys(data).forEach(dipId => {
                 const stds = data[dipId] || {};
                 Object.keys(stds).forEach(sid => {
-                    const st = stds[sid];
+                    const st = stds[sid] || {};
                     if (extractPureNumber(st.phone) === currentStudentPhone) {
                         matches.push({ diplomaId: dipId, studentId: sid, ...st });
                     }
@@ -1780,8 +1828,10 @@
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
                 if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
+
                 const labStart = dip.start_date;
                 const labEnd = getEndDateLab(dip);
+
                 if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
                 return false;
             }).map(m => ({
@@ -1797,9 +1847,11 @@
                 price: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].price) || 0
             }));
 
-            if (document.getElementById('student-dashboard').style.display !== 'none') {
-                renderStudentDashboard();
-            }
+            diplomaDataLoaded = true;
+
+            // إعادة الدمج بعد وصول بيانات الـ diploma لأن فلترة الـ courses
+            // تعتمد عليها للسجلات القديمة التي قد لا تحتوي على group صحيح.
+            refreshStudentRecords();
         });
         studentRealtimeRefs.push({ off: () => dipStudentsRef.off('value', dipStudentsCallback) });
     }
