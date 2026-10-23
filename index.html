@@ -2200,10 +2200,21 @@
     };
 
     window.submitBookAppointment = async function() {
+        // منع الضغط المزدوج على زر الحجز قبل انتهاء عملية Firebase
+        if (window.isBookingAppointment) return;
+        window.isBookingAppointment = true;
+        const submitBtn = document.querySelector('#book-appointment-modal .submit-btn');
+        if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; }
+
         const course = document.getElementById('book-course').value;
         const date = document.getElementById('book-date').value;
         const time = document.getElementById('book-time').value;
-        if (!date || !time || !course) { showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.'); return; }
+        if (!date || !time || !course) {
+            showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.');
+            window.isBookingAppointment = false;
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
+            return;
+        }
 
         let diplomaId = null;
         (currentStudentDiplomaData || []).forEach(dipData => {
@@ -2212,7 +2223,12 @@
             }
         });
 
-        if (!diplomaId) { showErrorModal('لم يتم العثور على الدورة المطابقة.'); return; }
+        if (!diplomaId) {
+            showErrorModal('لم يتم العثور على الدورة المطابقة.');
+            window.isBookingAppointment = false;
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
+            return;
+        }
 
         const cfg = getCourseConfig(diplomaId, course);
         const maxLimit = cfg.limit || 8;
@@ -2259,7 +2275,12 @@
                     if (exists) locallyAddedIds.delete(newRecord.id);
                 }, 5000);
             });
-        } catch(e) { showErrorModal('خطأ: ' + e.message); }
+        } catch(e) {
+            showErrorModal('خطأ: ' + e.message);
+        } finally {
+            window.isBookingAppointment = false;
+            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
+        }
     };
 
     /* ============ COURSE MANAGEMENT (DIPLOMAS) ============ */
