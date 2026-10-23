@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=16') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=16');
+        if (window.location.href.indexOf('?v=15') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=15');
         }
     </script>
     <title>test</title>
@@ -1693,6 +1693,7 @@
 
             let serverRecords = allSt.filter(s =>
                 extractPureNumber(s.phone) === currentStudentPhone &&
+                extractPureNumber(s.group) === currentStudentGroup &&
                 !s.canceled && s.date && s.date !== "بدون موعد"
             );
 
@@ -1704,12 +1705,6 @@
             });
 
             locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
-
-            // ✅ حماية من استجابة فارغة مؤقتة (بسبب مشكلة شبكة)
-            if (serverRecords.length === 0 && currentStudentRecords.length > 0 && locallyAddedIds.size === 0) {
-                console.warn('تجاهل استجابة فارغة مؤقتة لحماية بيانات الطالب');
-                return;
-            }
 
             currentStudentRecords = serverRecords;
             currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -1750,8 +1745,7 @@
             currentStudentDiplomaData = matches.filter(m => {
                 const dip = allDiplomas[m.diplomaId];
                 if (!dip) return false;
-                // ✅ فلترة حسب رقم المجموعة
-                if (currentStudentGroup && extractPureNumber(dip.number) !== currentStudentGroup) return false;
+                if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
                 const labStart = dip.start_date;
                 const labEnd = getEndDateLab(dip);
                 if (labStart && labEnd && todayStr >= labStart && todayStr <= labEnd) return true;
@@ -1813,29 +1807,16 @@
                 const diplomasData = diplomasSnap.exists() ? diplomasSnap.val() : {};
                 allDiplomas = diplomasData;
 
-                // ✅ جمع كل تسجيلات الطالب (بغض النظر عن رقم المجموعة)
-                let allDiplomaMatches = [];
+                let diplomaMatches = [];
                 Object.keys(dipStudentsData).forEach(dipId => {
                     const stds = dipStudentsData[dipId] || {};
                     Object.keys(stds).forEach(sid => {
                         const st = stds[sid];
                         if (extractPureNumber(st.phone) === phone) {
-                            allDiplomaMatches.push({ diplomaId: dipId, studentId: sid, ...st });
+                            diplomaMatches.push({ diplomaId: dipId, studentId: sid, ...st });
                         }
                     });
                 });
-
-                // ✅ فلترة حسب رقم المجموعة (رقم الدورة)
-                let diplomaMatches = allDiplomaMatches.filter(m => {
-                    const dip = diplomasData[m.diplomaId];
-                    return dip && extractPureNumber(dip.number) === group;
-                });
-
-                // لو الطالب مسجل بالفعل لكن برقم مجموعة مختلف
-                if (allDiplomaMatches.length > 0 && diplomaMatches.length === 0) {
-                    showErrorModal("رقم المجموعة غير مطابق للدورة المسجل بها. راجع الإدارة.");
-                    return;
-                }
 
                 // فلترة الدورات الشغالة حالياً فقط
                 const todayStr = getLocalDateString();
@@ -1853,11 +1834,18 @@
                     return;
                 }
 
-                let validDiplomaMatches = activeDiplomaMatches;
+                let validDiplomaMatches = activeDiplomaMatches.filter(m => {
+                    const dip = diplomasData[m.diplomaId];
+                    return dip && extractPureNumber(dip.number) === group;
+                });
+
+                if (validDiplomaMatches.length === 0) {
+                    showErrorModal("رقم الدورة غير صحيح أو غير مطابق للدورة المسجل بها. راجع الإدارة.");
+                    return;
+                }
 
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
-                // ✅ فلترة السجلات حسب رقم المجموعة أيضاً
                 let matchingRecords = allSt.filter(s =>
                     extractPureNumber(s.phone) === phone &&
                     extractPureNumber(s.group) === group &&
@@ -1866,7 +1854,7 @@
                 );
 
                 if (validDiplomaMatches.length === 0 && matchingRecords.length === 0) {
-                    if (allDiplomaMatches.length > 0) {
+                    if (diplomaMatches.length > 0) {
                         showErrorModal("رقم المجموعة غير مطابق للدورة المسجل بها. راجع الإدارة.");
                     } else {
                         showErrorModal("الحساب غير مسجل. يرجى مراجعة الإدارة.");
@@ -1905,13 +1893,6 @@
 
                 attachStudentRealtimeListeners();
                 renderStudentDashboard();
-
-                // ✅ إعادة الرسم بعد لحظة لضمان تطبيق الـ realtime data بشكل سليم
-                setTimeout(() => {
-                    if (currentStudentPhone && document.getElementById('student-dashboard').style.display !== 'none') {
-                        renderStudentDashboard();
-                    }
-                }, 800);
             });
         } catch(e) {
             showErrorModal('خطأ: ' + e.message);
@@ -1942,12 +1923,7 @@
 
         let attendedCount = currentStudentRecords.filter(r => r.attended).length;
         let absentCount = currentStudentRecords.filter(r => !r.attended && isPeriodPassed(r.date, r.time)).length;
-        // ✅ فلتر أكثر أمانًا للمواعيد القادمة
-        let upcomingRecs = currentStudentRecords.filter(r => {
-            if (!r.date || r.date === "بدون موعد" || r.canceled) return false;
-            if (!r.time) return true;
-            return !isPeriodPassed(r.date, r.time);
-        });
+        let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
         let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
@@ -2023,17 +1999,22 @@
                 const { diplomaId, diplomaName, courseName, courseKey, configKey } = enr;
                 const courseProgress = (currentStudentProgress && currentStudentProgress[configKey]) || {};
                 const totalTasks = getDynamicTasksCount(diplomaId, courseName);
+                const cfg = getCourseConfig(diplomaId, courseName);
+                const upcomingLimit = cfg.upcomingLimit;
+                let shownCount = 0;
 
                 for (let i = 1; i <= totalTasks; i++) {
                     const tKey = `task_${i}`;
                     const isDoneManual = courseProgress[tKey];
                     if (isDoneManual) continue;
+                    if (upcomingLimit > 0 && shownCount >= upcomingLimit) break;
                     const sub = courseProgress.submissions && courseProgress.submissions[tKey];
                     const bellHtml = (sub && sub.comment) ? `<span title="ملاحظة: ${escapeForAttr(sub.comment)}" style="cursor:help; margin-right: 5px;">🔔</span>` : '';
                     tasksHtml += `<div class="task-mini">
                         <div style="color: #fcc01a; font-weight: bold; font-size: 15px;">Task ${i} - ${escapeForAttr(courseName)} <span style="font-size:11px; color:#999; font-weight:normal;">(${escapeForAttr(diplomaName)})</span> ${bellHtml}</div>
                         <button class="admin-btn" style="padding: 6px 12px; font-size: 12px;" onclick="viewStudentTask('${diplomaId}', '${courseName}', '${tKey}', ${i})">عرض</button>
                     </div>`;
+                    shownCount++;
                 }
             });
 
@@ -4674,7 +4655,7 @@
 
     async function renderPdfPageToBase64(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
-        const viewport = page.getViewport({ scale: 0.7 });
+        const viewport = page.getViewport({ scale: 0.75 });
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         canvas.height = viewport.height;
@@ -4688,7 +4669,6 @@
         const diplomaId = currentEditingPdfDiplomaId;
         const courseName = currentEditingPdfCourseName;
 
-        // ✅ جلب lab_course_tasks بشكل موثوق
         try {
             const snap = await database.ref('lab_course_tasks').get();
             labCourseTasks = snap.exists() ? snap.val() : {};
@@ -4696,28 +4676,12 @@
             console.warn('تعذّر تحديث lab_course_tasks:', e);
         }
 
-        // ✅ جلب بيانات الدورة من السيرفر لو مش موجودة في allDiplomas
-        let dip = allDiplomas[diplomaId];
-        if (!dip) {
-            try {
-                const dSnap = await database.ref('diplomas/' + diplomaId).get();
-                dip = dSnap.exists() ? dSnap.val() : null;
-                if (dip) allDiplomas[diplomaId] = dip;
-            } catch(e) {}
-        }
-        if (!dip) {
-            alert('لم يتم العثور على الدورة. حاول تحديث الصفحة.');
-            return;
-        }
-        const diplomaName = (dip.name || '').trim();
-        if (!diplomaName) {
-            alert('اسم الدورة فارغ. راجع بيانات الدورة.');
-            return;
-        }
-
+        const dip = allDiplomas[diplomaId];
+        const diplomaName = dip ? (dip.name || '') : '';
         const dynamicTaskCount = findCourseTasksSmart(diplomaName, courseName);
+
         if (dynamicTaskCount === 0) {
-            alert('عدد التاسكات = 0. حدد العدد من "إدارة تاسكات المعمل" أولاً ثم أعد المحاولة.');
+            alert('عدد التاسكات = 0. حدد العدد من "إدارة تاسكات المعمل" أولاً.');
             return;
         }
 
@@ -4789,14 +4753,18 @@
                 }
             }
 
-            await database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`).set(updatedPdfTasks);
-
-            // ✅ تحقق من نجاح الحفظ على السيرفر
-            const verifySnap = await database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`).get();
-            if (!verifySnap.exists() && Object.keys(updatedPdfTasks).length > 0) {
-                throw new Error('لم يتم تأكيد الحفظ من السيرفر. تحقق من Firebase Rules.');
+            const pdfTasksRef = database.ref(`settings/diploma_course_config/${configKey}/pdfTasks`);
+            const saveOps = [];
+            for (let i = 1; i <= dynamicTaskCount; i++) {
+                const tKey = `task_${i}`;
+                if (updatedPdfTasks[tKey]) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
+                else saveOps.push(pdfTasksRef.child(tKey).remove());
             }
-
+            Object.keys(updatedPdfTasks).forEach(tKey => {
+                const num = parseInt(String(tKey).replace('task_', ''));
+                if (!isNaN(num) && num > dynamicTaskCount) saveOps.push(pdfTasksRef.child(tKey).set(updatedPdfTasks[tKey]));
+            });
+            await Promise.all(saveOps);
             if (!diplomaCourseConfig[configKey]) diplomaCourseConfig[configKey] = {};
             diplomaCourseConfig[configKey].pdfTasks = updatedPdfTasks;
 
