@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=10') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=10');
+        if (window.location.href.indexOf('?v=11') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=11');
         }
     </script>
     <title>test</title>
@@ -1669,6 +1669,7 @@
         const dipStudentsCallback = dipStudentsRef.on('value', snap => {
             if (!currentStudentPhone) return;
             const data = snap.exists() ? snap.val() : {};
+            const todayStr = getLocalDateString();
             let matches = [];
             Object.keys(data).forEach(dipId => {
                 const stds = data[dipId] || {};
@@ -1679,7 +1680,16 @@
                     }
                 });
             });
-            currentStudentDiplomaData = matches.map(m => ({
+
+            // ✅ نفلتر على الدورات النشطة فقط (اللي فترتها ما انتهتش ورقمها يطابق مجموعة الطالب)
+            currentStudentDiplomaData = matches.filter(m => {
+                const dip = allDiplomas[m.diplomaId];
+                if (!dip) return false;
+                if (extractPureNumber(dip.number) !== currentStudentGroup) return false;
+                const labEnd = getEndDateLab(dip);
+                if (!labEnd) return true;
+                return labEnd >= todayStr;
+            }).map(m => ({
                 diplomaId: m.diplomaId,
                 studentId: m.studentId,
                 name: m.name,
@@ -1691,6 +1701,7 @@
                 courses: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].courses) || [],
                 price: (allDiplomas[m.diplomaId] && allDiplomas[m.diplomaId].price) || 0
             }));
+
             if (document.getElementById('student-dashboard').style.display !== 'none') {
                 renderStudentDashboard();
             }
@@ -1752,7 +1763,7 @@
                     return extractPureNumber(dip.number) === group;
                 });
 
-                // ✅ فحص انتهاء فترة الدورة العملي
+                // ✅ فلترة الدورات النشطة فقط
                 const todayStr = getLocalDateString();
                 let activeDiplomaMatches = validDiplomaMatches.filter(m => {
                     const dip = diplomasData[m.diplomaId];
