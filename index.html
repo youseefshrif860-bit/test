@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=16') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=16');
+        if (window.location.href.indexOf('?v=17') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=17');
         }
     </script>
     <title>test</title>
@@ -481,15 +481,12 @@
 
 <div class="modal-overlay" id="book-appointment-modal" style="z-index: 1007;">
     <div class="modal-content" style="text-align: right;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">حجز موعد جديد</h3>
-        <label>الكورس:</label>
-        <select id="book-course"></select>
-        <label>التاريخ:</label>
-        <input type="date" id="book-date" onchange="updateBookTimeOptions()">
-        <label>الوقت:</label>
-        <select id="book-time"><option value="">اختر التاريخ أولاً</option></select>
-        <button class="submit-btn" style="margin-top: 10px;" onclick="submitBookAppointment()">تأكيد الحجز</button>
-        <button class="back-btn" style="width: 100%; margin-top: 10px;" onclick="closeBookAppointmentModal()">إلغاء</button>
+        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">حجز مواعيد جديدة</h3>
+        <p style="color:#555; font-size:13px; margin:0 0 12px;">تقدر تحجز أكتر من موعد في نفس المرة، وكل موعد له كورس وتاريخ ووقت مستقل.</p>
+        <div id="booking-appointments-container"></div>
+        <button type="button" class="add-btn" id="booking-add-btn" style="margin-top:8px;" onclick="addBookingAppointmentRow()">＋ إضافة موعد آخر</button>
+        <button type="button" class="submit-btn" id="booking-submit-btn" style="margin-top: 10px;" onclick="submitBookAppointment()">تأكيد حجز المواعيد</button>
+        <button type="button" class="back-btn" id="booking-cancel-btn" style="width: 100%; margin-top: 10px;" onclick="closeBookAppointmentModal()">إلغاء</button>
     </div>
 </div>
 
@@ -2178,60 +2175,143 @@
         document.getElementById('student-dashboard-content').innerHTML = html;
     }
 
-    window.openBookAppointmentModal = function() {
-        window.currentBookingRequestId = database.ref('new_system/students').push().key;
-        document.getElementById('book-date').min = today;
-        document.getElementById('book-date').value = '';
-        document.getElementById('book-time').innerHTML = '<option value="">اختر التاريخ أولاً</option>';
+    // قائمة الكورسات المتاحة للحجز، وتستخدمها كل صفوف المواعيد في النافذة.
+    window.availableBookingCourses = [];
+    window.bookingRowCounter = 0;
 
-        const select = document.getElementById('book-course');
+    function populateBookingCourseSelect(select) {
         select.innerHTML = '';
+        if (!window.availableBookingCourses.length) {
+            const option = document.createElement('option');
+            option.value = '';
+            option.textContent = 'لا توجد كورسات متاحة في دوراتك الشغالة حالياً';
+            select.appendChild(option);
+            return;
+        }
+        window.availableBookingCourses.forEach((course, index) => {
+            const option = document.createElement('option');
+            option.value = String(index);
+            option.textContent = course.diplomaNumber
+                ? `${course.courseName} (${course.diplomaName} - #${course.diplomaNumber})`
+                : `${course.courseName} (${course.diplomaName})`;
+            select.appendChild(option);
+        });
+    }
 
-        let allCourses = [];
+    window.addBookingAppointmentRow = function() {
+        const container = document.getElementById('booking-appointments-container');
+        if (!container) return;
+
+        window.bookingRowCounter += 1;
+        const rowId = `booking-row-${window.bookingRowCounter}`;
+        const requestId = database.ref('new_system/students').push().key;
+        const row = document.createElement('div');
+        row.className = 'booking-appointment-row';
+        row.id = rowId;
+        row.dataset.requestId = requestId;
+        row.style.cssText = 'border:1px solid #d8c7e8; border-right:4px solid #fcc01a; background:#f8f5fb; border-radius:8px; padding:12px; margin:10px 0; color:#3b1e5a;';
+
+        const header = document.createElement('div');
+        header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; gap:8px; margin-bottom:8px;';
+        const title = document.createElement('strong');
+        title.textContent = `الموعد ${container.querySelectorAll('.booking-appointment-row').length + 1}`;
+        header.appendChild(title);
+        const removeBtn = document.createElement('button');
+        removeBtn.type = 'button';
+        removeBtn.textContent = 'حذف الموعد';
+        removeBtn.style.cssText = 'background:#ff4d4d; color:white; border:0; border-radius:5px; padding:6px 9px; cursor:pointer; font-weight:bold;';
+        removeBtn.addEventListener('click', () => {
+            if (container.querySelectorAll('.booking-appointment-row').length <= 1) {
+                showErrorModal('لازم يكون فيه موعد واحد على الأقل.');
+                return;
+            }
+            row.remove();
+            renumberBookingAppointmentRows();
+        });
+        header.appendChild(removeBtn);
+        row.appendChild(header);
+
+        const courseLabel = document.createElement('label');
+        courseLabel.textContent = 'الكورس:';
+        courseLabel.style.cssText = 'display:block; font-weight:bold; margin-top:6px;';
+        const courseSelect = document.createElement('select');
+        courseSelect.className = 'booking-course';
+        courseSelect.style.cssText = 'width:100%; padding:11px; margin:6px 0 10px; border-radius:6px; border:1px solid #c5b8d8; box-sizing:border-box; background:white; color:#3b1e5a;';
+        populateBookingCourseSelect(courseSelect);
+        row.appendChild(courseLabel);
+        row.appendChild(courseSelect);
+
+        const dateLabel = document.createElement('label');
+        dateLabel.textContent = 'التاريخ:';
+        dateLabel.style.cssText = 'display:block; font-weight:bold; margin-top:3px;';
+        const dateInput = document.createElement('input');
+        dateInput.type = 'date';
+        dateInput.className = 'booking-date';
+        dateInput.min = today;
+        dateInput.style.cssText = 'width:100%; padding:11px; margin:6px 0 10px; border-radius:6px; border:1px solid #c5b8d8; box-sizing:border-box; background:white; color:#3b1e5a;';
+        row.appendChild(dateLabel);
+        row.appendChild(dateInput);
+
+        const timeLabel = document.createElement('label');
+        timeLabel.textContent = 'الوقت:';
+        timeLabel.style.cssText = 'display:block; font-weight:bold; margin-top:3px;';
+        const timeSelect = document.createElement('select');
+        timeSelect.className = 'booking-time';
+        timeSelect.style.cssText = 'width:100%; padding:11px; margin:6px 0 2px; border-radius:6px; border:1px solid #c5b8d8; box-sizing:border-box; background:white; color:#3b1e5a;';
+        const defaultTime = document.createElement('option');
+        defaultTime.value = '';
+        defaultTime.textContent = 'اختر التاريخ أولاً';
+        timeSelect.appendChild(defaultTime);
+        row.appendChild(timeLabel);
+        row.appendChild(timeSelect);
+
+        dateInput.addEventListener('change', () => updateBookTimeOptions(dateInput));
+        container.appendChild(row);
+        renumberBookingAppointmentRows();
+    };
+
+    function renumberBookingAppointmentRows() {
+        const rows = document.querySelectorAll('#booking-appointments-container .booking-appointment-row');
+        rows.forEach((row, index) => {
+            const title = row.querySelector('strong');
+            if (title) title.textContent = `الموعد ${index + 1}`;
+            const removeBtn = row.querySelector('button');
+            if (removeBtn) removeBtn.style.display = rows.length <= 1 ? 'none' : '';
+        });
+    }
+
+    window.openBookAppointmentModal = function() {
+        window.currentBookingRequestId = null;
+        window.bookingRowCounter = 0;
+        window.availableBookingCourses = [];
+        const container = document.getElementById('booking-appointments-container');
+        container.innerHTML = '';
+
         const seen = new Set();
         const todayStr = getLocalDateString();
-
         (currentStudentDiplomaData || []).forEach(dipData => {
             const dip = allDiplomas[dipData.diplomaId];
             if (dip) {
                 const labEnd = getEndDateLab(dip);
                 const labStart = dip.start_date;
-                if (labStart && labEnd) {
-                    if (todayStr < labStart || todayStr > labEnd) return;
-                } else if (labEnd && todayStr > labEnd) {
-                    return;
-                }
+                if (labStart && labEnd && (todayStr < labStart || todayStr > labEnd)) return;
+                if (!labStart && labEnd && todayStr > labEnd) return;
             }
 
-            const dipName = dipData.dipName || 'دورة';
-            const dipNum = dipData.dipNumber || '';
-            (dipData.courses || []).forEach(c => {
-                const key = `${dipData.diplomaId}_${courseNameToKey(c.name)}`;
-                if (!seen.has(key)) {
-                    seen.add(key);
-                    allCourses.push({
-                        courseName: c.name,
-                        diplomaId: dipData.diplomaId,
-                        diplomaName: dipName,
-                        diplomaNumber: dipNum
-                    });
-                }
+            (dipData.courses || []).forEach(course => {
+                const key = `${dipData.diplomaId}_${courseNameToKey(course.name)}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                window.availableBookingCourses.push({
+                    courseName: course.name,
+                    diplomaId: dipData.diplomaId,
+                    diplomaName: dipData.dipName || 'دورة',
+                    diplomaNumber: dipData.dipNumber || ''
+                });
             });
         });
 
-        if (allCourses.length === 0) {
-            select.innerHTML = '<option value="">لا توجد كورسات متاحة في دوراتك الشغالة حالياً</option>';
-        } else {
-            allCourses.forEach(c => {
-                const o = document.createElement('option');
-                o.value = c.courseName;
-                o.text = c.diplomaNumber
-                    ? `${c.courseName} (${c.diplomaName} - #${c.diplomaNumber})`
-                    : `${c.courseName} (${c.diplomaName})`;
-                select.appendChild(o);
-            });
-        }
-
+        window.addBookingAppointmentRow();
         document.getElementById('book-appointment-modal').style.display = 'flex';
     };
 
@@ -2239,64 +2319,89 @@
         document.getElementById('book-appointment-modal').style.display = 'none';
     };
 
-    window.updateBookTimeOptions = function() {
-        const dateVal = document.getElementById('book-date').value;
-        const timeSelect = document.getElementById('book-time');
-        timeSelect.innerHTML = '<option value="">اختر الوقت</option>';
+    window.updateBookTimeOptions = function(dateInput) {
+        const row = dateInput && dateInput.closest
+            ? dateInput.closest('.booking-appointment-row')
+            : document.querySelector('#booking-appointments-container .booking-appointment-row');
+        if (!row) return;
+        const dateVal = row.querySelector('.booking-date').value;
+        const timeSelect = row.querySelector('.booking-time');
+        timeSelect.innerHTML = '';
+        const firstOption = document.createElement('option');
+        firstOption.value = '';
+        firstOption.textContent = dateVal ? 'اختر الوقت' : 'اختر التاريخ أولاً';
+        timeSelect.appendChild(firstOption);
         if (!dateVal) return;
+
         const parts = dateVal.split('-');
-        const localDate = new Date(parts[0], parts[1] - 1, parts[2]);
+        const localDate = new Date(Number(parts[0]), Number(parts[1]) - 1, Number(parts[2]));
         const day = localDate.getDay();
-        let daySettings = globalSchedule[day] || defaultSchedule[day] || {};
-        globalPeriods.forEach(p => {
-            let isActive = daySettings[p.name];
+        const daySettings = globalSchedule[day] || defaultSchedule[day] || {};
+        globalPeriods.forEach(period => {
+            let isActive = daySettings[period.name];
             if (isActive === undefined) isActive = true;
             if (isActive) {
-                let o = document.createElement('option');
-                o.value = p.name; o.text = p.name;
-                if (isLateBookingBlocked && isBookingClosedForPeriod(dateVal, p.name)) o.disabled = true;
-                timeSelect.appendChild(o);
+                const option = document.createElement('option');
+                option.value = period.name;
+                option.textContent = period.name;
+                if (isLateBookingBlocked && isBookingClosedForPeriod(dateVal, period.name)) option.disabled = true;
+                timeSelect.appendChild(option);
             }
         });
     };
 
     window.submitBookAppointment = async function() {
-        // يمنع النقر المزدوج، كما أن request ID الثابت يمنع إنشاء سجل ثانٍ لنفس المحاولة.
         if (window.isBookingAppointment) return;
         window.isBookingAppointment = true;
 
-        const submitBtn = document.querySelector('#book-appointment-modal .submit-btn');
-        const cancelBtn = document.querySelector('#book-appointment-modal .back-btn');
-        if (submitBtn) { submitBtn.disabled = true; submitBtn.style.opacity = '0.6'; }
-        if (cancelBtn) { cancelBtn.disabled = true; cancelBtn.style.opacity = '0.6'; }
+        const submitBtn = document.getElementById('booking-submit-btn');
+        const cancelBtn = document.getElementById('booking-cancel-btn');
+        const addBtn = document.getElementById('booking-add-btn');
+        const modal = document.getElementById('book-appointment-modal');
+        const rows = Array.from(document.querySelectorAll('#booking-appointments-container .booking-appointment-row'));
+        [submitBtn, cancelBtn, addBtn].forEach(button => {
+            if (button) { button.disabled = true; button.style.opacity = '0.6'; }
+        });
+        modal.querySelectorAll('input, select, .booking-appointment-row button').forEach(control => control.disabled = true);
 
         try {
-            const course = document.getElementById('book-course').value;
-            const date = document.getElementById('book-date').value;
-            const time = document.getElementById('book-time').value;
-
-            if (!currentStudentPhone || !date || !time || !course) {
-                showErrorModal('يرجى اختيار الكورس والتاريخ والوقت.');
+            if (!currentStudentPhone) {
+                showErrorModal('يرجى تسجيل الدخول مرة أخرى قبل الحجز.');
+                return;
+            }
+            if (!rows.length) {
+                showErrorModal('أضف موعدًا واحدًا على الأقل.');
                 return;
             }
 
-            let diplomaId = null;
-            (currentStudentDiplomaData || []).forEach(dipData => {
-                if (!diplomaId && (dipData.courses || []).some(c => c.name === course)) {
-                    diplomaId = dipData.diplomaId;
+            const selections = [];
+            const requestedSlots = new Set();
+            for (let index = 0; index < rows.length; index++) {
+                const row = rows[index];
+                const courseIndex = row.querySelector('.booking-course').value;
+                const date = row.querySelector('.booking-date').value;
+                const time = row.querySelector('.booking-time').value;
+                const courseData = courseIndex === '' ? null : window.availableBookingCourses[Number(courseIndex)];
+
+                if (!courseData || !date || !time) {
+                    showErrorModal(`يرجى اختيار الكورس والتاريخ والوقت للموعد ${index + 1}.`);
+                    return;
                 }
-            });
+                const slotKey = `${date}|${time}`;
+                if (requestedSlots.has(slotKey)) {
+                    showErrorModal('مينفعش تحجز أكتر من موعد في نفس التاريخ والوقت. غيّر وقت أحد المواعيد.');
+                    return;
+                }
+                requestedSlots.add(slotKey);
 
-            if (!diplomaId) {
-                showErrorModal('لم يتم العثور على الدورة المطابقة.');
-                return;
+                selections.push({
+                    course: courseData.courseName,
+                    diplomaId: courseData.diplomaId,
+                    date,
+                    time,
+                    bookingId: row.dataset.requestId || database.ref('new_system/students').push().key
+                });
             }
-
-            const cfg = getCourseConfig(diplomaId, course);
-            const maxLimit = cfg.limit || 8;
-            const bookingId = window.currentBookingRequestId || database.ref('new_system/students').push().key;
-            // تأكد من ثبات المعرّف حتى إغلاق/فتح نافذة حجز جديدة.
-            window.currentBookingRequestId = bookingId;
 
             await runWithOnlineConnection(async () => {
                 const [studentsSnap, appointmentsSnap, blockSnap] = await Promise.all([
@@ -2312,87 +2417,109 @@
                         if (value) allServerRecords.set(child.key, { id: child.key, ...value });
                     });
                 }
-                // المسار الشخصي نسخة مساعدة؛ لا نضيف سجلاً مكررًا إذا كان موجودًا بالمعرّف نفسه.
                 if (appointmentsSnap.exists()) {
                     appointmentsSnap.forEach(child => {
                         const value = child.val();
-                        if (value && !allServerRecords.has(child.key)) {
-                            allServerRecords.set(child.key, { id: child.key, ...value });
-                        }
+                        if (value && !allServerRecords.has(child.key)) allServerRecords.set(child.key, { id: child.key, ...value });
                     });
                 }
-
-                const uniqueServerRecords = dedupeAppointmentRecords(Array.from(allServerRecords.values()));
-                const countInSlot = uniqueServerRecords.filter(record =>
-                    record.date === date && record.time === time && record.course === course && record.canceled !== true
-                ).length;
-                if (countInSlot >= maxLimit) {
-                    showErrorModal(SYSTEM_MESSAGES.full);
-                    return;
-                }
-
-                // الفحص من Firebase نفسه، وليس من القائمة المحلية فقط.
-                // أي حجز نشط لنفس الطالب في التاريخ والوقت يمنع إنشاء حجز جديد.
-                const duplicateOnServer = Array.from(allServerRecords.values()).some(record =>
-                    record.id !== bookingId &&
-                    extractPureNumber(record.phone || '') === currentStudentPhone &&
-                    record.date === date && record.time === time &&
-                    record.canceled !== true
-                );
-                const duplicateLocally = currentStudentRecords.some(record =>
-                    record.id !== bookingId && record.date === date && record.time === time && record.canceled !== true
-                );
-
-                if (duplicateOnServer || duplicateLocally) {
-                    showErrorModal(SYSTEM_MESSAGES.duplicate);
-                    return;
-                }
+                const serverRecords = Array.from(allServerRecords.values());
+                const uniqueServerRecords = dedupeAppointmentRecords(serverRecords);
 
                 if (blockSnap.exists()) {
                     showErrorModal(SYSTEM_MESSAGES.blocked);
                     return;
                 }
 
-                const record = {
-                    name: currentStudentName,
-                    phone: currentStudentPhone,
-                    group: currentStudentGroup,
-                    course: course,
-                    date: date,
-                    time: time,
-                    attended: false,
-                    tasks: null,
-                    canceled: false,
-                    timestamp: new Date().toLocaleString()
-                };
+                // نراجع كل موعد قبل الحفظ؛ لن يُحفظ أي جزء من الطلب لو كان أحد المواعيد غير صالح.
+                for (const selection of selections) {
+                    const existingSameRequest = allServerRecords.get(selection.bookingId);
+                    const alreadySaved = existingSameRequest &&
+                        extractPureNumber(existingSameRequest.phone || '') === currentStudentPhone &&
+                        existingSameRequest.course === selection.course &&
+                        existingSameRequest.date === selection.date &&
+                        existingSameRequest.time === selection.time &&
+                        existingSameRequest.canceled !== true;
+                    selection.alreadySaved = Boolean(alreadySaved);
+                    if (selection.alreadySaved) continue;
 
-                // استخدام نفس المعرّف في المسارين يجعل إعادة تنفيذ نفس الطلب idempotent.
+                    const diplomaId = selection.diplomaId;
+                    const cfg = getCourseConfig(diplomaId, selection.course);
+                    const maxLimit = cfg.limit || 8;
+                    const countInSlot = uniqueServerRecords.filter(record =>
+                        record.id !== selection.bookingId &&
+                        record.date === selection.date && record.time === selection.time &&
+                        record.course === selection.course && record.canceled !== true
+                    ).length;
+                    if (countInSlot >= maxLimit) {
+                        showErrorModal(`الفترة ممتلئة للكورس ${selection.course} في ${selection.date} - ${selection.time}.`);
+                        return;
+                    }
+
+                    const duplicateOnServer = serverRecords.some(record =>
+                        record.id !== selection.bookingId &&
+                        extractPureNumber(record.phone || '') === currentStudentPhone &&
+                        record.date === selection.date && record.time === selection.time &&
+                        record.canceled !== true
+                    );
+                    const duplicateLocally = currentStudentRecords.some(record =>
+                        record.id !== selection.bookingId && record.date === selection.date &&
+                        record.time === selection.time && record.canceled !== true
+                    );
+                    if (duplicateOnServer || duplicateLocally) {
+                        showErrorModal(`أنت حاجز بالفعل موعدًا في ${selection.date} - ${selection.time}. اختار وقتًا آخر.`);
+                        return;
+                    }
+                }
+
                 const updates = {};
-                updates['new_system/students/' + bookingId] = record;
-                updates['new_system/student_appointments/' + currentStudentPhone + '/' + bookingId] = record;
-                await database.ref().update(updates);
+                const newRecords = [];
+                selections.forEach(selection => {
+                    const record = selection.alreadySaved
+                        ? { ...allServerRecords.get(selection.bookingId) }
+                        : {
+                            name: currentStudentName,
+                            phone: currentStudentPhone,
+                            group: currentStudentGroup,
+                            course: selection.course,
+                            date: selection.date,
+                            time: selection.time,
+                            attended: false,
+                            tasks: null,
+                            canceled: false,
+                            timestamp: new Date().toLocaleString()
+                        };
+                    if (!selection.alreadySaved) {
+                        updates['new_system/students/' + selection.bookingId] = record;
+                        updates['new_system/student_appointments/' + currentStudentPhone + '/' + selection.bookingId] = record;
+                    }
+                    newRecords.push({ id: selection.bookingId, ...record });
+                });
 
-                const newRecord = { id: bookingId, ...record };
-                locallyAddedIds.add(newRecord.id);
-                currentStudentRecords = dedupeAppointmentRecords([...currentStudentRecords, newRecord]);
+                if (Object.keys(updates).length) await database.ref().update(updates);
+
+                newRecords.forEach(record => locallyAddedIds.add(record.id));
+                currentStudentRecords = dedupeAppointmentRecords([...currentStudentRecords, ...newRecords]);
                 currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
 
                 closeBookAppointmentModal();
                 renderStudentDashboard();
-                alert('تم حجز الموعد بنجاح! ✅');
+                alert(`تم حجز ${selections.length} ${selections.length === 1 ? 'موعد' : 'مواعيد'} بنجاح! ✅`);
 
                 setTimeout(() => {
-                    if (currentStudentRecords.some(r => r.id === newRecord.id)) {
-                        locallyAddedIds.delete(newRecord.id);
-                    }
+                    newRecords.forEach(record => {
+                        if (currentStudentRecords.some(item => item.id === record.id)) locallyAddedIds.delete(record.id);
+                    });
                 }, 5000);
             });
         } catch (e) {
             showErrorModal('خطأ: ' + e.message);
         } finally {
             window.isBookingAppointment = false;
-            if (submitBtn) { submitBtn.disabled = false; submitBtn.style.opacity = ''; }
-            if (cancelBtn) { cancelBtn.disabled = false; cancelBtn.style.opacity = ''; }
+            [submitBtn, cancelBtn, addBtn].forEach(button => {
+                if (button) { button.disabled = false; button.style.opacity = ''; }
+            });
+            modal.querySelectorAll('input, select, .booking-appointment-row button').forEach(control => control.disabled = false);
         }
     };
 
