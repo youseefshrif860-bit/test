@@ -7,8 +7,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=9') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=9');
+        if (window.location.href.indexOf('?v=10') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=10');
         }
     </script>
     <title>test</title>
@@ -1116,7 +1116,8 @@
         phone_err: "الرجاء التأكد من إدخال رقم هاتف مكون من 11 رقماً.",
         group_mismatch: "عفواً، رقم الهاتف مسجل مسبقاً برقم مجموعة مختلف.",
         wa_template: "",
-        no_support: "لا يمكن التواصل مع مهندس المعمل الآن"
+        no_support: "لا يمكن التواصل مع مهندس المعمل الآن",
+        expired_diploma: "انتهت فترة دورتك. يرجى مراجعة الإدارة للتجديد."
     };
 
     let isLateBookingBlocked = false;
@@ -1609,7 +1610,6 @@
     let currentStudentManageProgress = {};
     let activeStudentManagePhone = null;
 
-    // Real-time listeners للطالب
     let studentRealtimeRefs = [];
     let locallyAddedIds = new Set();
 
@@ -1636,7 +1636,6 @@
                 !s.canceled && s.date && s.date !== "بدون موعد"
             );
 
-            // احتفظ بالسجلات المضافة محليًا ولسه مش ظاهرة على السيرفر
             let serverIds = new Set(serverRecords.map(r => r.id));
             currentStudentRecords.forEach(r => {
                 if (locallyAddedIds.has(r.id) && !serverIds.has(r.id)) {
@@ -1644,7 +1643,6 @@
                 }
             });
 
-            // نظّف الـ IDs اللي بقت ظاهرة على السيرفر
             locallyAddedIds.forEach(id => { if (serverIds.has(id)) locallyAddedIds.delete(id); });
 
             currentStudentRecords = serverRecords;
@@ -1754,6 +1752,23 @@
                     return extractPureNumber(dip.number) === group;
                 });
 
+                // ✅ فحص انتهاء فترة الدورة العملي
+                const todayStr = getLocalDateString();
+                let activeDiplomaMatches = validDiplomaMatches.filter(m => {
+                    const dip = diplomasData[m.diplomaId];
+                    if (!dip) return false;
+                    const labEnd = getEndDateLab(dip);
+                    if (!labEnd) return true;
+                    return labEnd >= todayStr;
+                });
+
+                if (validDiplomaMatches.length > 0 && activeDiplomaMatches.length === 0) {
+                    showErrorModal(SYSTEM_MESSAGES.expired_diploma);
+                    return;
+                }
+
+                validDiplomaMatches = activeDiplomaMatches;
+
                 let allSt = [];
                 if (studentsSnap.exists()) studentsSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
                 let matchingRecords = allSt.filter(s =>
@@ -1832,7 +1847,6 @@
         let upcomingRecs = currentStudentRecords.filter(r => !isPeriodPassed(r.date, r.time));
         upcomingRecs.sort((a,b) => new Date(a.date) - new Date(b.date));
 
-        // بيانات الدورة من currentStudentDiplomaData
         let dip = currentStudentDiplomaData.length > 0 ? currentStudentDiplomaData[0] : null;
         let dipInfoHtml = '';
         if (dip) {
@@ -1850,7 +1864,6 @@
             </div>
         `;
 
-        // الإحصائيات
         html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">📊 إحصائياتي</h3>
@@ -1871,7 +1884,6 @@
             </div>
         `;
 
-        // المواعيد القادمة
         html += `
             <div class="dash-section">
                 <h3 class="dash-section-title">
@@ -1895,7 +1907,6 @@
         }
         html += `</div>`;
 
-        // التاسكات القادمة
         html += `<div class="dash-section">
             <h3 class="dash-section-title">📝 التاسكات القادمة</h3>`;
 
@@ -1999,7 +2010,6 @@
                 const pushRef = await database.ref('students').push(record);
                 const newRecord = { id: pushRef.key, ...record };
 
-                // إضافة فورية + تعليمها كـ locally-added
                 locallyAddedIds.add(newRecord.id);
                 currentStudentRecords.push(newRecord);
                 currentStudentRecords.sort((a, b) => new Date(a.date) - new Date(b.date));
@@ -4195,7 +4205,6 @@
         }
     };
 
-    // Stubs لإعدادات النظام
     if (typeof renderSystemSettingsUI !== 'function') {
         window.renderSystemSettingsUI = function() {
             const btn = document.getElementById('btn-block-late');
