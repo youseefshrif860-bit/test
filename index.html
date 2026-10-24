@@ -559,7 +559,7 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="error-modal">
+<div class="modal-overlay" id="error-modal" style="z-index: 99999;">
     <div class="modal-content" style="border-color: #ff4d4d;">
         <strong style="color: #ff4d4d; display: block; margin-bottom: 10px; font-size: 17px;">تنبيه النظام</strong>
         <p id="error-modal-msg" style="margin: 0; color: black; line-height: 1.8; font-size: 15px; font-weight: bold;"></p>
@@ -2426,6 +2426,9 @@
                     return;
                 }
 
+                // ✅ FIX: Use flag instead of return inside loop to guarantee save is skipped
+                let bookingValidationError = null;
+
                 for (const selection of selections) {
                     const existingSameRequest = allServerRecords.get(selection.bookingId);
                     const alreadySaved = existingSameRequest &&
@@ -2446,8 +2449,8 @@
                         record.course === selection.course && record.canceled !== true
                     ).length;
                     if (countInSlot >= maxLimit) {
-                        showErrorModal(`الفترة ممتلئة للكورس ${selection.course} في ${selection.date} - ${selection.time}.`);
-                        return;
+                        bookingValidationError = `الفترة ممتلئة للكورس ${selection.course} في ${selection.date} - ${selection.time}.`;
+                        break;
                     }
 
                     const duplicateOnServer = serverRecords.some(record =>
@@ -2461,9 +2464,14 @@
                         record.time === selection.time && record.canceled !== true
                     );
                     if (duplicateOnServer || duplicateLocally) {
-                        showErrorModal(`أنت حاجز بالفعل موعدًا في ${selection.date} - ${selection.time}. اختار وقتًا آخر.`);
-                        return;
+                        bookingValidationError = `أنت حاجز بالفعل موعدًا في ${selection.date} - ${selection.time}. اختار وقتًا آخر.`;
+                        break;
                     }
+                }
+
+                if (bookingValidationError) {
+                    showErrorModal(bookingValidationError);
+                    return;
                 }
 
                 const updates = {};
