@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=26') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=26');
+        if (window.location.href.indexOf('?v=27') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=27');
         }
     </script>
     <title>test</title>
@@ -1637,7 +1637,7 @@
                 const labTasksSnap = await database.ref('new_system/lab_course_tasks').get();
                 if (labTasksSnap.exists()) {
                     labCourseTasks = labTasksSnap.val();
-                    console.log('✅ v26 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
+                    console.log('✅ v27 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
                 }
             } catch(e) {
                 console.warn('⚠️ Could not load lab_course_tasks:', e.message);
@@ -1651,7 +1651,8 @@
             clearTimeout(idleConnectionTimer);
             database.goOnline();
             let emailName = user.email.split('@')[0];
-            currentAdminName = "ENG:" + emailName;
+            // ✅ v27: اسم الأدمن بدون بادئة ENG:
+            currentAdminName = emailName;
             let displayElem = document.getElementById('admin-name-display');
             if(displayElem) displayElem.innerText = currentAdminName;
             let menuName = document.getElementById('admin-main-menu-name');
@@ -1931,7 +1932,7 @@
                 ]);
 
                 labCourseTasks = labTasksSnap.exists() ? labTasksSnap.val() : {};
-                console.log('🔍 v26 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
+                console.log('🔍 v27 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
 
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
@@ -2666,7 +2667,6 @@
         container.appendChild(row);
     };
 
-    // ✅ v26: توريث إعدادات التاسكات تلقائياً من الدورات المشابهة
     window.saveNewDiploma = async function() {
         const name = document.getElementById('new-dip-name').value.trim();
         const number = document.getElementById('new-dip-number').value.trim();
@@ -2688,7 +2688,6 @@
         if (courses.length === 0) { alert('يرجى إضافة كورس واحد على الأقل.'); return; }
 
         try {
-            // 1) احفظ الدورة الجديدة
             const newDipRef = await database.ref('new_system/diplomas').push({
                 name, number, price, courses,
                 start_date: startDate || null,
@@ -2699,7 +2698,6 @@
             });
             const newDipId = newDipRef.key;
 
-            // 2) ✅ الجديد: ورّث إعدادات التاسكات تلقائياً من أي دورة بنفس الاسم
             try {
                 const cfgSnap = await database.ref('new_system/settings/diploma_course_config').get();
                 const freshConfig = cfgSnap.exists() ? cfgSnap.val() : {};
@@ -2725,7 +2723,7 @@
                     });
                     if (Object.keys(updates).length > 0) {
                         await database.ref().update(updates);
-                        console.log(`✅ v26 - ورّثت إعدادات ${Object.keys(updates).length} كورس للدورة "${name}" تلقائياً`);
+                        console.log(`✅ v27 - ورّثت إعدادات ${Object.keys(updates).length} كورس للدورة "${name}" تلقائياً`);
                     }
                 }
             } catch(e) {
