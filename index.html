@@ -1098,10 +1098,16 @@
     let globalLabPhone = "";
 
     let SYSTEM_MESSAGES = {
+        wa_template: "",
+        success: "تم تأكيد التسجيل بنجاح. بيان المواعيد:",
+        full: "عفواً، هذا الموعد ممتلئ.",
+        closed_day: "المعمل مغلق يوم",
+        late_block: "عفواً، لا يمكنك التسجيل في الفترة الحالية لانتهاء وقت الاستقبال.",
         blocked: "الحساب مقيد، يرجى مراجعة الإدارة.",
+        duplicate: "تكرار في المواعيد المختارة.",
         not_found: "لا توجد بيانات متطابقة.",
         phone_err: "الرجاء التأكد من إدخال رقم هاتف مكون من 11 رقماً.",
-        wa_template: "",
+        group_mismatch: "عفواً، رقم الهاتف مسجل مسبقاً برقم مجموعة مختلف.",
         no_support: "لا يمكن التواصل مع مهندس المعمل الآن"
     };
 
@@ -4015,7 +4021,6 @@
         if (subInput) subInput.value = '';
     };
 
-    function closeSuccessModal() { /* removed */ }
     function showErrorModal(message) { document.getElementById('error-modal-msg').innerHTML = message; document.getElementById('error-modal').style.display = 'flex'; }
     function closeErrorModal() { document.getElementById('error-modal').style.display = 'none'; }
 
@@ -5220,18 +5225,28 @@
     window.openMessagesSettingsModal = function() {
         const fieldsContainer = document.getElementById('messages-settings-fields');
         if (!fieldsContainer) return;
-        const fields = [
-            { id: 'msg-wa-template', label: 'رسالة واتساب الافتراضية:', value: SYSTEM_MESSAGES.wa_template || '' },
-            { id: 'msg-blocked',     label: 'رسالة الحساب المقيد:',     value: SYSTEM_MESSAGES.blocked || '' },
-            { id: 'msg-not-found',   label: 'رسالة عدم وجود بيانات:',   value: SYSTEM_MESSAGES.not_found || '' },
-            { id: 'msg-phone-err',   label: 'رسالة خطأ رقم الهاتف:',    value: SYSTEM_MESSAGES.phone_err || '' }
+
+        const messageDefinitions = [
+            { key: 'wa_template',    label: 'رسالة واتساب الافتراضية:' },
+            { key: 'success',        label: 'رسالة نجاح التسجيل:' },
+            { key: 'full',           label: 'رسالة اكتمال العدد:' },
+            { key: 'closed_day',     label: 'رسالة الإغلاق الكلي لليوم:' },
+            { key: 'late_block',     label: 'رسالة الإغلاق لانتهاء الوقت:' },
+            { key: 'blocked',        label: 'رسالة الحساب المقيد:' },
+            { key: 'duplicate',      label: 'رسالة تكرار المواعيد:' },
+            { key: 'not_found',      label: 'رسالة عدم وجود بيانات:' },
+            { key: 'phone_err',      label: 'رسالة خطأ رقم الهاتف:' },
+            { key: 'group_mismatch', label: 'رسالة اختلاف رقم المجموعة:' },
+            { key: 'no_support',     label: 'رسالة عدم توفر الدعم:' }
         ];
-        fieldsContainer.innerHTML = fields.map(f => `
+
+        fieldsContainer.innerHTML = messageDefinitions.map(f => `
             <div style="margin-bottom: 12px;">
                 <label style="font-size:14px; color:#3b1e5a; font-weight:bold; display:block; margin-bottom:4px;">${f.label}</label>
-                <input type="text" id="${f.id}" value="${escapeForAttr(f.value)}" style="margin:0;">
+                <input type="text" id="msg-field-${f.key}" data-msg-key="${f.key}" value="${escapeForAttr(SYSTEM_MESSAGES[f.key] || '')}" style="margin:0;">
             </div>
         `).join('');
+
         document.getElementById('messages-settings-modal').style.display = 'flex';
     };
 
@@ -5241,12 +5256,10 @@
 
     window.saveMessagesSettings = async function() {
         try {
-            const updates = {
-                wa_template: document.getElementById('msg-wa-template').value,
-                blocked:     document.getElementById('msg-blocked').value,
-                not_found:   document.getElementById('msg-not-found').value,
-                phone_err:   document.getElementById('msg-phone-err').value
-            };
+            const updates = {};
+            document.querySelectorAll('#messages-settings-fields input[data-msg-key]').forEach(inp => {
+                updates[inp.getAttribute('data-msg-key')] = inp.value;
+            });
             await database.ref('new_system/settings/messages').update(updates);
             Object.assign(SYSTEM_MESSAGES, updates);
             alert('تم حفظ الرسائل بنجاح ✅');
