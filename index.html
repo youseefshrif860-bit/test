@@ -567,6 +567,14 @@
     </div>
 </div>
 
+<div class="modal-overlay" id="diploma-student-report-modal" style="z-index: 99998;">
+    <div class="modal-content" style="max-width: 750px; text-align: right;">
+        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">📋 تقرير شامل عن الطالب</h3>
+        <div id="diploma-student-report-body" style="max-height: 65vh; overflow-y: auto; padding: 5px;"></div>
+        <button class="modal-close-btn" style="background-color: #3b1e5a; margin-top: 15px;" onclick="document.getElementById('diploma-student-report-modal').style.display='none'">إغلاق</button>
+    </div>
+</div>
+
 <div class="container" id="login-view">
     <h2 style="text-align: center; color: #fcc01a;">الإدارة</h2>
     <form id="loginForm">
@@ -675,6 +683,13 @@
         <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #fcc01a; padding-bottom: 10px; margin-bottom: 15px; flex-wrap:wrap; gap:10px;">
             <h2 id="diploma-detail-title" style="color: white; margin: 0;"></h2>
             <button class="add-btn" style="width: auto; margin: 0; padding: 11px 22px;" onclick="openDipAddStudentModal()">➕ إضافة طالب</button>
+        </div>
+        <div style="position: relative; margin-bottom: 15px;">
+            <input type="text" id="diploma-student-search" class="search-diploma-input" 
+                placeholder="🔍 ابحث عن طالب بالاسم أو رقم الهاتف لعرض تقريره الشامل (بحث في كل الدورات)..." 
+                oninput="searchDiplomaStudentGlobal(this.value)" autocomplete="off" style="margin-bottom: 0;">
+            <div id="diploma-student-search-results" 
+                style="position: absolute; width: 100%; background: white; color: black; z-index: 1001; max-height: 280px; overflow-y: auto; border-radius: 5px; box-shadow: 0 4px 8px rgba(0,0,0,0.3); display: none; top: 100%; right: 0; margin-top: 4px;"></div>
         </div>
         <div id="diploma-students-container"></div>
     </div>
@@ -889,7 +904,6 @@
                     <div>إجمالي التسجيلات: <b id="report-total" style="color: #3b1e5a;"></b></div>
                     <div>تاريخ آخر حضور: <b id="report-last"></b></div>
                     <div>مرات الغياب: <b id="report-absent" style="color: red;"></b></div>
-                    <div style="font-weight: bold; color: #cc0000; font-size: 14px; margin-top: 2px;" id="report-absence-cycle"></div>
                     <div id="report-vip-status" style="margin-top:5px; font-size: 20px; display:none; cursor:help;" title="خريج (VIP)">⭐</div>
                 </div>
             </div>
@@ -1040,11 +1054,9 @@
         return `<ul style="margin: 0; padding-right: 20px; text-align: right; direction: rtl;">` + items.map(li => `<li style="margin-bottom: 6px;">${li}</li>`).join('') + `</ul>`;
     }
 
-    /* ============ Ban Rules ============ */
+    /* ============ Ban Rules (inactivity only) ============ */
     let banRules = {
-        absence: { enabled: true, limit: 3, type: 'permanent', days: 7 },
-        inactivity: { enabled: true, limit: 14, type: 'permanent', days: 7 },
-        tenure: { enabled: true, limit: 3, type: 'permanent', days: 7 }
+        inactivity: { enabled: true, limit: 14, type: 'permanent', days: 7 }
     };
 
     let labCourseTasks = {};
@@ -1060,27 +1072,6 @@
         if (resetDate && resetDate > baseDate) baseDate = resetDate;
         let diff = diffDaysSafely(baseDate, todayStr);
         return { inactive: diff >= limit, days: diff, baseDate: baseDate, lastAttendedReal: lastAttendedReal };
-    }
-
-    function getAbsenceCycle(records, unblockDate, resetDate, todayStr, limit) {
-        let validRecs = records.filter(r => !r.canceled && r.date && r.date !== "بدون موعد");
-        validRecs.sort((a,b) => new Date(a.date+"T00:00:00") - new Date(b.date+"T00:00:00"));
-        let cycleStart = null;
-        let absences = 0;
-        let effectiveReset = resetDate || null;
-        for (let r of validRecs) {
-            if (effectiveReset && r.date <= effectiveReset) continue;
-            if (!cycleStart) { cycleStart = r.date; absences = 0; }
-            let diff = diffDaysSafely(cycleStart, r.date);
-            if (diff >= 14) { cycleStart = r.date; absences = 0; }
-            if (!r.attended && isPeriodPassed(r.date, r.time)) absences++;
-        }
-        if (cycleStart) {
-            let diffToday = diffDaysSafely(cycleStart, todayStr);
-            if (diffToday >= 14) return { active: false, currentDay: 0, absences: 0, limit: limit };
-            return { active: true, currentDay: diffToday + 1, absences: absences, limit: limit };
-        }
-        return { active: false, currentDay: 0, absences: 0, limit: limit };
     }
 
     let openCoursePanels = new Set();
@@ -1565,10 +1556,8 @@
                     if (s.lateBookingOffset !== undefined) lateBookingOffsetHours = parseFloat(s.lateBookingOffset) || 0;
                     if (s.periodsData) globalPeriods = s.periodsData;
                     if (s.schedule) globalSchedule = s.schedule;
-                    if (s.ban_rules) {
-                        if (s.ban_rules.absence) Object.assign(banRules.absence, s.ban_rules.absence);
-                        if (s.ban_rules.inactivity) Object.assign(banRules.inactivity, s.ban_rules.inactivity);
-                        if (s.ban_rules.tenure) Object.assign(banRules.tenure, s.ban_rules.tenure);
+                    if (s.ban_rules && s.ban_rules.inactivity) {
+                        Object.assign(banRules.inactivity, s.ban_rules.inactivity);
                     }
                     if (s.diploma_course_config) diplomaCourseConfig = s.diploma_course_config;
                 }
@@ -2426,7 +2415,6 @@
                     return;
                 }
 
-                // ✅ FIX: Use flag instead of return inside loop to guarantee save is skipped
                 let bookingValidationError = null;
 
                 for (const selection of selections) {
@@ -2988,6 +2976,11 @@
         document.getElementById('add-diploma-view').style.display = 'none';
         document.getElementById('diplomas-list-view').style.display = 'none';
         document.getElementById('diploma-detail-view').style.display = 'block';
+        // reset search field
+        const sInput = document.getElementById('diploma-student-search');
+        if (sInput) sInput.value = '';
+        const sResults = document.getElementById('diploma-student-search-results');
+        if (sResults) sResults.style.display = 'none';
         renderDiplomaCoursesConfig();
         await renderDiplomaStudents();
     };
@@ -2996,6 +2989,191 @@
         const container = document.getElementById('diploma-courses-config-container');
         if (container) container.innerHTML = '';
     }
+
+    /* ============ Diploma Student Report (search + report) ============ */
+
+    window.searchDiplomaStudentGlobal = function(query) {
+        if (!auth.currentUser) return;
+        const container = document.getElementById('diploma-student-search-results');
+        if (!container) return;
+        const q = String(query || '').trim();
+        if (!q) { container.style.display = 'none'; return; }
+        const qLower = q.toLowerCase();
+        const qPure = extractPureNumber(q);
+
+        const phoneMap = new Map();
+        Object.values(allDiplomaStudents || {}).forEach(dipStds => {
+            Object.values(dipStds || {}).forEach(st => {
+                if (!st) return;
+                const phone = extractPureNumber(st.phone);
+                if (!phone) return;
+                const nameMatch = st.name && st.name.toLowerCase().includes(qLower);
+                const phoneMatch = qPure && phone.includes(qPure);
+                if (nameMatch || phoneMatch) {
+                    if (!phoneMap.has(phone)) {
+                        phoneMap.set(phone, { name: st.name, phone: st.phone });
+                    }
+                }
+            });
+        });
+
+        const results = Array.from(phoneMap.values());
+        if (results.length === 0) {
+            container.innerHTML = '<div class="suggestion-item" style="color:#cc0000; font-weight:bold;">لا توجد نتائج مطابقة</div>';
+        } else {
+            container.innerHTML = results.slice(0, 30).map(r =>
+                `<div class="suggestion-item" onclick="openDiplomaStudentReport('${escapeForJs(r.phone)}')">
+                    👤 ${escapeForAttr(r.name || 'بدون اسم')} - <span style="color:#666; font-size:13px;">${escapeForAttr(r.phone || '')}</span>
+                </div>`
+            ).join('');
+        }
+        container.style.display = 'block';
+    };
+
+    window.openDiplomaStudentReport = async function(phoneParam) {
+        if (!auth.currentUser) { showErrorModal('هذه الميزة للإدارة فقط.'); return; }
+        const purePhone = extractPureNumber(phoneParam);
+        if (!purePhone) return;
+
+        const searchResults = document.getElementById('diploma-student-search-results');
+        if (searchResults) searchResults.style.display = 'none';
+        const searchInput = document.getElementById('diploma-student-search');
+        if (searchInput) searchInput.value = '';
+
+        const body = document.getElementById('diploma-student-report-body');
+        body.innerHTML = '<div style="text-align:center; padding:40px; color:#666; font-size:16px;">⏳ جاري تحميل بيانات الطالب...</div>';
+        document.getElementById('diploma-student-report-modal').style.display = 'flex';
+
+        try {
+            const [dipStudentsSnap, diplomasSnap, progSnap, allStSnap] = await Promise.all([
+                database.ref('new_system/diploma_students').get(),
+                database.ref('new_system/diplomas').get(),
+                database.ref('new_system/student_progress/' + purePhone).get(),
+                database.ref('new_system/students').get()
+            ]);
+
+            const allDipStudents = dipStudentsSnap.exists() ? dipStudentsSnap.val() : {};
+            const allDiplomasData = diplomasSnap.exists() ? diplomasSnap.val() : {};
+            const prog = progSnap.exists() ? progSnap.val() : {};
+
+            let allSt = [];
+            if (allStSnap.exists()) allStSnap.forEach(c => allSt.push({ id: c.key, ...c.val() }));
+
+            const enrollments = [];
+            Object.keys(allDipStudents).forEach(dipId => {
+                const stds = allDipStudents[dipId] || {};
+                Object.keys(stds).forEach(stId => {
+                    const st = stds[stId];
+                    if (extractPureNumber(st.phone) === purePhone) {
+                        enrollments.push({ dipId, stId, st });
+                    }
+                });
+            });
+
+            if (enrollments.length === 0) {
+                body.innerHTML = '<div style="text-align:center; padding:30px; color:#cc0000; font-weight:bold; font-size:16px;">⚠️ لا يوجد سجلات لهذا الطالب في أي دورة</div>';
+                return;
+            }
+
+            const firstSt = enrollments[0].st;
+            const todayStr = getLocalDateString();
+
+            enrollments.sort((a, b) => {
+                const dipA = allDiplomasData[a.dipId] || {};
+                const dipB = allDiplomasData[b.dipId] || {};
+                const activeA = isLabDiplomaActive(dipA, todayStr) ? 1 : 0;
+                const activeB = isLabDiplomaActive(dipB, todayStr) ? 1 : 0;
+                return activeB - activeA;
+            });
+
+            let html = `
+                <div style="background: linear-gradient(135deg, #f8f5fb, #efe9f5); border: 2px solid #fcc01a; border-radius: 10px; padding: 18px; margin-bottom: 20px;">
+                    <div style="font-size: 22px; font-weight: bold; color: #3b1e5a; margin-bottom: 12px;">👤 ${escapeForAttr(firstSt.name || 'بدون اسم')}</div>
+                    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 10px; font-size: 15px; color: #3b1e5a;">
+                        <div>📞 <b>الهاتف:</b> <span onclick="openWhatsApp('${firstSt.phone}')" style="cursor:pointer; color:#0066cc; text-decoration:underline;">${escapeForAttr(firstSt.phone || '-')}</span></div>
+                        <div>🏠 <b>العنوان:</b> ${escapeForAttr(firstSt.address || '-')}</div>
+                        <div>🎓 <b>الكلية:</b> ${escapeForAttr(firstSt.college || '-')}</div>
+                        <div>📚 <b>عدد الدورات:</b> ${enrollments.length}</div>
+                    </div>
+                </div>
+            `;
+
+            html += `<h4 style="color:#3b1e5a; border-bottom: 2px solid #fcc01a; padding-bottom: 8px; margin-bottom: 15px; font-size: 16px;">📚 الدورات المسجل بها وتقدمه</h4>`;
+
+            enrollments.forEach(enr => {
+                const dip = allDiplomasData[enr.dipId] || {};
+                const st = enr.st;
+                const isActive = isLabDiplomaActive(dip, todayStr);
+                const paid = parseInt(st.paid) || 0;
+                const price = parseInt(dip.price) || 0;
+                const isFullyPaid = paid >= price;
+                const endDate = getEndDateLab(dip);
+                const startDate = dip.start_date || '?';
+
+                const statusBadge = isActive
+                    ? '<span style="background:#28a745; color:white; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold;">نشطة ✓</span>'
+                    : '<span style="background:#666; color:white; padding:4px 12px; border-radius:12px; font-size:12px; font-weight:bold;">منتهية</span>';
+
+                const payBadge = isFullyPaid
+                    ? `<span style="color:#28a745; font-weight:bold;">✅ مدفوع بالكامل (${paid.toLocaleString()} / ${price.toLocaleString()} ج.م)</span>`
+                    : `<span style="color:#cc0000; font-weight:bold;">⚠️ غير مكتمل (${paid.toLocaleString()} / ${price.toLocaleString()} ج.م) — متبقي ${(price - paid).toLocaleString()} ج.م</span>`;
+
+                html += `
+                    <div style="background: white; border: 2px solid ${isActive ? '#fcc01a' : '#ddd'}; border-radius: 10px; padding: 15px; margin-bottom: 15px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 8px; border-bottom: 1px solid #eee; padding-bottom: 10px; margin-bottom: 12px;">
+                            <div>
+                                <div style="font-size: 17px; font-weight: bold; color: #3b1e5a;">${escapeForAttr(dip.name || 'دورة')} — رقم ${escapeForAttr(dip.number || '')}</div>
+                                <div style="font-size: 13px; color: #666; margin-top: 4px;">📅 من ${startDate} إلى ${endDate || '?'}</div>
+                            </div>
+                            ${statusBadge}
+                        </div>
+                        <div style="background: #f9f9f9; padding: 10px; border-radius: 6px; margin-bottom: 12px; font-size: 14px; color:#3b1e5a;">
+                            💰 <b>الرسوم:</b> ${payBadge}
+                        </div>
+                `;
+
+                const courses = dip.courses || [];
+                if (courses.length === 0) {
+                    html += `<div style="text-align:center; color:#999; padding:10px;">لا توجد كورسات مسجلة في هذه الدورة</div>`;
+                } else {
+                    const cTasks = {};
+                    allSt.filter(s => extractPureNumber(s.phone) === purePhone && s.attended && s.tasks).forEach(r => {
+                        const courseKey = courseNameToKey(r.course);
+                        if (!courses.some(c => courseNameToKey(c.name) === courseKey)) return;
+                        const configKey = `${enr.dipId}_${courseKey}`;
+                        if (!cTasks[configKey]) cTasks[configKey] = new Set();
+                        r.tasks.split('|').forEach(t => { if (t.trim()) cTasks[configKey].add(t.trim()); });
+                    });
+
+                    html += `<div style="font-size: 13px; font-weight: bold; color: #3b1e5a; margin-bottom: 8px;">📖 الكورسات وتقدم الـ Tasks:</div>`;
+
+                    courses.forEach(course => {
+                        const progress = calculateProgressDynamic(enr.dipId, course.name, cTasks, prog);
+                        const isDone = progress.percentage === 100 && progress.totalItems > 0;
+                        const barColor = isDone ? '#28a745' : (progress.percentage > 0 ? '#fcc01a' : '#cc0000');
+
+                        html += `
+                            <div style="margin-bottom: 10px; padding: 10px; background: #fafafa; border-radius: 6px; border-right: 4px solid ${barColor};">
+                                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 6px;">
+                                    <span style="font-weight:bold; color:#3b1e5a; font-size: 14px;">${isDone ? '✅' : '⏳'} ${escapeForAttr(course.name)}</span>
+                                    <span style="font-size: 13px; font-weight: bold; color: ${barColor};">${progress.completed} / ${progress.totalItems}</span>
+                                </div>
+                                <div style="width: 100%; height: 8px; background: #e0e0e0; border-radius: 4px; overflow: hidden;">
+                                    <div style="width: ${progress.percentage}%; height: 100%; background: ${barColor}; transition: width 0.4s;"></div>
+                                </div>
+                            </div>
+                        `;
+                    });
+                }
+
+                html += `</div>`;
+            });
+
+            body.innerHTML = html;
+        } catch(e) {
+            body.innerHTML = `<div style="text-align:center; padding:20px; color:#cc0000; font-weight:bold;">خطأ: ${escapeForAttr(e.message)}</div>`;
+        }
+    };
 
     window.renderDiplomaStudents = async function() {
         const container = document.getElementById('diploma-students-container');
@@ -3040,7 +3218,9 @@
 
                     html += `<tr style="background-color: ${bgColor}; border-bottom: 1px solid #eee;">
                         <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; background: #f0f0f0; color: #3b1e5a;">${index + 1}</td>
-                        <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #3b1e5a;">${st.name || ''}</td>
+                        <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #3b1e5a;">
+                            <span onclick="openDiplomaStudentReport('${escapeForJs(st.phone)}')" style="cursor: pointer; color: #0066cc; text-decoration: underline;" title="اضغط لعرض التقرير الشامل">${escapeForAttr(st.name || '')}</span>
+                        </td>
                         <td onclick="openWhatsApp('${st.phone}')" style="padding: 6px; border: 1px solid #ddd; font-family: Tahoma; cursor: pointer; color: inherit; text-decoration: none;" title="مراسلة عبر واتساب">${st.phone || ''}</td>
                         <td style="padding: 6px; border: 1px solid #ddd;">${st.college || '-'}</td>
                         <td style="padding: 6px; border: 1px solid #ddd;">${st.address || '-'}</td>
@@ -3435,7 +3615,9 @@
 
                 html += `<tr style="background-color: ${bgColor}; border-bottom: 1px solid #eee;">
                     <td style="padding: 6px; border: 1px solid #ddd; text-align: center; font-weight: bold; background: #f0f0f0; color: #3b1e5a;">${index + 1}</td>
-                    <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #3b1e5a;">${st.name || ''}</td>
+                    <td style="padding: 6px; border: 1px solid #ddd; font-weight: bold; color: #3b1e5a;">
+                        <span onclick="openDiplomaStudentReport('${escapeForJs(st.phone)}')" style="cursor: pointer; color: #0066cc; text-decoration: underline;" title="اضغط لعرض التقرير الشامل">${escapeForAttr(st.name || '')}</span>
+                    </td>
                     <td onclick="openWhatsApp('${st.phone}')" style="padding: 6px; border: 1px solid #ddd; font-family: Tahoma; cursor: pointer; color: inherit; text-decoration: none;" title="مراسلة عبر واتساب">${st.phone || ''}</td>
                     <td style="padding: 6px; border: 1px solid #ddd;">${st.college || '-'}</td>
 
@@ -4072,13 +4254,8 @@
         });
         database.ref('new_system/settings/periodsData').on('value', snap => { if (snap.exists()) globalPeriods = snap.val(); renderPeriodsEdit(); });
         database.ref('new_system/settings/schedule').on('value', snap => { if (snap.exists()) globalSchedule = snap.val(); else database.ref('new_system/settings/schedule').set(defaultSchedule); });
-        database.ref('new_system/settings/ban_rules').on('value', snap => {
-            if(snap.exists()) {
-                let data = snap.val();
-                if(data.absence) Object.assign(banRules.absence, data.absence);
-                if(data.inactivity) Object.assign(banRules.inactivity, data.inactivity);
-                if(data.tenure) Object.assign(banRules.tenure, data.tenure);
-            }
+        database.ref('new_system/settings/ban_rules/inactivity').on('value', snap => {
+            if (snap.exists()) Object.assign(banRules.inactivity, snap.val());
         });
 
         database.ref('new_system/lab_course_tasks').on('value', snap => {
@@ -4578,6 +4755,7 @@
     }
 
     async function selectStudent(studentPhoneParam) {
+        if (!auth.currentUser) { showErrorModal('هذه الميزة للإدارة فقط.'); return; }
         let todayStr = getLocalDateString();
         let targetPhone = extractPureNumber(studentPhoneParam); currentSelectedStudent = targetPhone;
         document.getElementById('search-student').value = '';
@@ -4611,9 +4789,6 @@
         let inactCheck = checkInactivity(allStudentRecords, unblockDate, studentProgressData.inactivity_reset_date, todayStr, banRules.inactivity.limit);
         let inactColor = inactCheck.days >= banRules.inactivity.limit ? 'red' : 'green';
         document.getElementById('report-last').innerHTML = `<span style="color: ${inactColor};">${inactCheck.lastAttendedReal} (${inactCheck.days} يوم)</span>`;
-        let cycleCheck = getAbsenceCycle(allStudentRecords, unblockDate, studentProgressData.absence_reset_date, todayStr, banRules.absence.limit);
-        let cycleText = cycleCheck.active ? `${cycleCheck.currentDay}/14 (${cycleCheck.absences})` : `0/14 (0)`;
-        document.getElementById('report-absence-cycle').innerText = cycleText;
         let tbody = document.getElementById('report-tbody'); tbody.innerHTML = '';
 
         const cTasks = {};
@@ -4678,6 +4853,12 @@
         if(e.target.id !== 'search-student') document.getElementById('search-suggestions').style.display = 'none';
         let subDropdown = document.getElementById('submissions-dropdown');
         if (subDropdown && !e.target.closest('.bell-wrapper')) subDropdown.style.display = 'none';
+        if (e.target.id !== 'diploma-student-search') {
+            const dipSearchResults = document.getElementById('diploma-student-search-results');
+            if (dipSearchResults && !e.target.closest('#diploma-student-search-results')) {
+                dipSearchResults.style.display = 'none';
+            }
+        }
     });
 
     function renderScheduleDay(dayVal) {
