@@ -8,8 +8,8 @@
     <meta http-equiv="Pragma" content="no-cache" />
     <meta http-equiv="Expires" content="0" />
     <script>
-        if (window.location.href.indexOf('?v=25') === -1) {
-            window.location.replace(window.location.href.split('?')[0] + '?v=25');
+        if (window.location.href.indexOf('?v=26') === -1) {
+            window.location.replace(window.location.href.split('?')[0] + '?v=26');
         }
     </script>
     <title>test</title>
@@ -897,7 +897,7 @@
                 <div id="messages-settings-container"></div>
                 <div class="settings-card" id="lab-tasks-settings-card">
                     <h4>إدارة تاسكات المعمل</h4>
-                    <p style="font-size: 14px; color: #ddd; margin: 0 0 15px 0;">اختر الدورة، ثم حدد عدد التاسكات لكل كورس. الأرقام دي هتطبق على كل نسخ الدورة اللي بنفس الاسم.</p>
+                    <p style="font-size: 14px; color: #ddd; margin: 0 0 15px 0;">اختر الدورة، ثم حدد عدد التاسكات لكل كورس. الأرقام دي هتطبق على كل نسخ الدورة اللي بنفس الاسم. <b style="color: #28a745;">✓ الدورات الجديدة بتاخد الإعدادات تلقائياً</b></p>
                     <label>اختر الدورة:</label>
                     <select id="lab-tasks-diploma-select" onchange="renderLabTasksCourseInputs()">
                         <option value="">-- اختر دورة --</option>
@@ -1637,7 +1637,7 @@
                 const labTasksSnap = await database.ref('new_system/lab_course_tasks').get();
                 if (labTasksSnap.exists()) {
                     labCourseTasks = labTasksSnap.val();
-                    console.log('✅ v25 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
+                    console.log('✅ v26 - lab_course_tasks loaded:', Object.keys(labCourseTasks).length, 'diplomas');
                 }
             } catch(e) {
                 console.warn('⚠️ Could not load lab_course_tasks:', e.message);
@@ -1931,7 +1931,7 @@
                 ]);
 
                 labCourseTasks = labTasksSnap.exists() ? labTasksSnap.val() : {};
-                console.log('🔍 v25 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
+                console.log('🔍 v26 - labCourseTasks on login:', Object.keys(labCourseTasks).length, 'diplomas');
 
                 if (settingsSnap.exists()) {
                     const s = settingsSnap.val();
@@ -2666,6 +2666,7 @@
         container.appendChild(row);
     };
 
+    // ✅ v26: توريث إعدادات التاسكات تلقائياً من الدورات المشابهة
     window.saveNewDiploma = async function() {
         const name = document.getElementById('new-dip-name').value.trim();
         const number = document.getElementById('new-dip-number').value.trim();
@@ -2687,7 +2688,8 @@
         if (courses.length === 0) { alert('يرجى إضافة كورس واحد على الأقل.'); return; }
 
         try {
-            await database.ref('new_system/diplomas').push({
+            // 1) احفظ الدورة الجديدة
+            const newDipRef = await database.ref('new_system/diplomas').push({
                 name, number, price, courses,
                 start_date: startDate || null,
                 end_date: endDateCourses || null,
@@ -2695,7 +2697,42 @@
                 end_date_lab: endDateLab,
                 createdAt: new Date().toLocaleString()
             });
-            alert('تم حفظ الدورة بنجاح! ✅');
+            const newDipId = newDipRef.key;
+
+            // 2) ✅ الجديد: ورّث إعدادات التاسكات تلقائياً من أي دورة بنفس الاسم
+            try {
+                const cfgSnap = await database.ref('new_system/settings/diploma_course_config').get();
+                const freshConfig = cfgSnap.exists() ? cfgSnap.val() : {};
+
+                const sameNameDipIds = [];
+                Object.keys(allDiplomas).forEach(dipId => {
+                    if (dipId !== newDipId && (allDiplomas[dipId].name || '').trim() === name) {
+                        sameNameDipIds.push(dipId);
+                    }
+                });
+
+                if (sameNameDipIds.length > 0) {
+                    const updates = {};
+                    courses.forEach(c => {
+                        for (const existingDipId of sameNameDipIds) {
+                            const existingKey = makeCourseConfigKey(existingDipId, c.name);
+                            if (freshConfig[existingKey]) {
+                                const newKey = makeCourseConfigKey(newDipId, c.name);
+                                updates[`new_system/settings/diploma_course_config/${newKey}`] = freshConfig[existingKey];
+                                break;
+                            }
+                        }
+                    });
+                    if (Object.keys(updates).length > 0) {
+                        await database.ref().update(updates);
+                        console.log(`✅ v26 - ورّثت إعدادات ${Object.keys(updates).length} كورس للدورة "${name}" تلقائياً`);
+                    }
+                }
+            } catch(e) {
+                console.warn('تعذّر توريث إعدادات التاسكات:', e);
+            }
+
+            alert('تم حفظ الدورة بنجاح! ✅\nتم توريث إعدادات التاسكات تلقائياً من الدورات المشابهة.');
             document.getElementById('new-dip-name').value = '';
             document.getElementById('new-dip-number').value = '';
             document.getElementById('new-dip-price').value = '';
@@ -5284,7 +5321,6 @@
         return [...new Set(pages)];
     }
 
-    // ✅ v25: جودة مطابقة للـ PDF (PNG + scale 2.0 = نص حاد تماماً)
     async function renderPdfPageToBase64(pdfDoc, pageNum) {
         const page = await pdfDoc.getPage(pageNum);
         const viewport = page.getViewport({ scale: 2.0 });
