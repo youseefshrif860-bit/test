@@ -567,15 +567,6 @@
     </div>
 </div>
 
-<div class="modal-overlay" id="messages-settings-modal" style="z-index: 1010;">
-    <div class="modal-content" style="max-width: 600px; text-align: right;">
-        <h3 style="color:#3b1e5a; margin-top:0; border-bottom: 2px solid #fcc01a; padding-bottom: 10px;">تخصيص رسائل النظام</h3>
-        <div id="messages-settings-fields" style="max-height: 55vh; overflow-y: auto;"></div>
-        <button class="submit-btn" style="margin-top: 15px;" onclick="saveMessagesSettings()">حفظ الرسائل</button>
-        <button class="back-btn" style="width: 100%; margin-top: 10px;" onclick="closeMessagesSettingsModal()">إلغاء</button>
-    </div>
-</div>
-
 <div class="container" id="login-view">
     <h2 style="text-align: center; color: #fcc01a;">الإدارة</h2>
     <form id="loginForm">
@@ -872,7 +863,6 @@
                     </div>
                 </div>
                 <div id="support-settings-container"></div>
-                <div id="messages-settings-container"></div>
                 <div class="settings-card" id="lab-tasks-settings-card">
                     <h4>إدارة تاسكات المعمل</h4>
                     <p style="font-size: 14px; color: #ddd; margin: 0 0 15px 0;">اختر الدورة، ثم حدد عدد التاسكات لكل كورس. الأرقام دي هتطبق على كل نسخ الدورة اللي بنفس الاسم. <b style="color: #28a745;">✓ الدورات الجديدة بتاخد الإعدادات تلقائياً</b></p>
@@ -1098,16 +1088,10 @@
     let globalLabPhone = "";
 
     let SYSTEM_MESSAGES = {
-        wa_template: "",
-        success: "تم تأكيد التسجيل بنجاح. بيان المواعيد:",
-        full: "عفواً، هذا الموعد ممتلئ.",
-        closed_day: "المعمل مغلق يوم",
-        late_block: "عفواً، لا يمكنك التسجيل في الفترة الحالية لانتهاء وقت الاستقبال.",
         blocked: "الحساب مقيد، يرجى مراجعة الإدارة.",
-        duplicate: "تكرار في المواعيد المختارة.",
         not_found: "لا توجد بيانات متطابقة.",
         phone_err: "الرجاء التأكد من إدخال رقم هاتف مكون من 11 رقماً.",
-        group_mismatch: "عفواً، رقم الهاتف مسجل مسبقاً برقم مجموعة مختلف.",
+        wa_template: "",
         no_support: "لا يمكن التواصل مع مهندس المعمل الآن"
     };
 
@@ -5207,65 +5191,6 @@
                     </div>
                 </div>
             `;
-        }
-
-        let msgsContainer = document.getElementById('messages-settings-container');
-        if (msgsContainer) {
-            msgsContainer.innerHTML = `
-                <div class="settings-card" style="margin-top: 20px;">
-                    <div style="display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap;">
-                        <h4 style="margin:0; border:none; padding:0;">تخصيص رسائل النظام</h4>
-                        <button class="admin-btn" style="padding: 9px 16px; font-size: 14px;" onclick="openMessagesSettingsModal()">✏️ تعديل الرسائل</button>
-                    </div>
-                </div>
-            `;
-        }
-    };
-
-    window.openMessagesSettingsModal = function() {
-        const fieldsContainer = document.getElementById('messages-settings-fields');
-        if (!fieldsContainer) return;
-
-        const messageDefinitions = [
-            { key: 'wa_template',    label: 'رسالة واتساب الافتراضية:' },
-            { key: 'success',        label: 'رسالة نجاح التسجيل:' },
-            { key: 'full',           label: 'رسالة اكتمال العدد:' },
-            { key: 'closed_day',     label: 'رسالة الإغلاق الكلي لليوم:' },
-            { key: 'late_block',     label: 'رسالة الإغلاق لانتهاء الوقت:' },
-            { key: 'blocked',        label: 'رسالة الحساب المقيد:' },
-            { key: 'duplicate',      label: 'رسالة تكرار المواعيد:' },
-            { key: 'not_found',      label: 'رسالة عدم وجود بيانات:' },
-            { key: 'phone_err',      label: 'رسالة خطأ رقم الهاتف:' },
-            { key: 'group_mismatch', label: 'رسالة اختلاف رقم المجموعة:' },
-            { key: 'no_support',     label: 'رسالة عدم توفر الدعم:' }
-        ];
-
-        fieldsContainer.innerHTML = messageDefinitions.map(f => `
-            <div style="margin-bottom: 12px;">
-                <label style="font-size:14px; color:#3b1e5a; font-weight:bold; display:block; margin-bottom:4px;">${f.label}</label>
-                <input type="text" id="msg-field-${f.key}" data-msg-key="${f.key}" value="${escapeForAttr(SYSTEM_MESSAGES[f.key] || '')}" style="margin:0;">
-            </div>
-        `).join('');
-
-        document.getElementById('messages-settings-modal').style.display = 'flex';
-    };
-
-    window.closeMessagesSettingsModal = function() {
-        document.getElementById('messages-settings-modal').style.display = 'none';
-    };
-
-    window.saveMessagesSettings = async function() {
-        try {
-            const updates = {};
-            document.querySelectorAll('#messages-settings-fields input[data-msg-key]').forEach(inp => {
-                updates[inp.getAttribute('data-msg-key')] = inp.value;
-            });
-            await database.ref('new_system/settings/messages').update(updates);
-            Object.assign(SYSTEM_MESSAGES, updates);
-            alert('تم حفظ الرسائل بنجاح ✅');
-            closeMessagesSettingsModal();
-        } catch(e) {
-            alert('خطأ: ' + e.message);
         }
     };
 
